@@ -1,0 +1,54 @@
+# ---------------------------
+# Maven
+# ---------------------------
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+
+# ---------------------------
+# IntelliJ IDEA
+# ---------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# ---------------------------
+# VS Code
+# ---------------------------
+.vscode/
+
+# ---------------------------
+# Eclipse (以防有开发者用)
+# ---------------------------
+.project
+.classpath
+.settings/
+bin/
+
+# ---------------------------
+# Logs & temp files
+# ---------------------------
+*.log
+logs/
+*.tmp
+*.swp
+*.swo
+
+# ---------------------------
+# OS 系统文件
+# ---------------------------
+.DS_Store
+Thumbs.db
+
+# ---------------------------
+# Java
+# ---------------------------
+*.class
+*.hprof
