@@ -18,7 +18,7 @@ public class TestController {
     }
 
     @GetMapping("/testTable")
-    public ResultDTO testTable() {
+    public ResultDTO<?> testTable() {
         List<?> rows = testService.getAllRows();
         return ResultDTO.success(rows);
     }
