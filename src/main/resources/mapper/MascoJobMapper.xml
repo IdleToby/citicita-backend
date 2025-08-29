@@ -1,0 +1,380 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.citacita.mapper.MascoJobMapper">
+
+    <resultMap id="BaseResultMap" type="com.citacita.entity.MascoJob">
+        <id property="unitGroupCode" column="unit_group_code" jdbcType="VARCHAR"/>
+        <result property="majorGroupCode" column="major_group_code" jdbcType="VARCHAR"/>
+        <result property="majorGroupTitle" column="major_group_title" jdbcType="VARCHAR"/>
+        <result property="majorGroupTitleMalay" column="major_group_title_malay" jdbcType="VARCHAR"/>
+        <result property="majorGroupTitleChinese" column="major_group_title_chinese" jdbcType="VARCHAR"/>
+        <result property="subMajorGroupCode" column="sub_major_group_code" jdbcType="VARCHAR"/>
+        <result property="subMajorGroupTitle" column="sub_major_group_title" jdbcType="VARCHAR"/>
+        <result property="subMajorGroupTitleMalay" column="sub_major_group_title_malay" jdbcType="VARCHAR"/>
+        <result property="subMajorGroupTitleChinese" column="sub_major_group_title_chinese" jdbcType="VARCHAR"/>
+        <result property="minorGroupCode" column="minor_group_code" jdbcType="VARCHAR"/>
+        <result property="minorGroupTitle" column="minor_group_title" jdbcType="VARCHAR"/>
+        <result property="minorGroupTitleMalay" column="minor_group_title_malay" jdbcType="VARCHAR"/>
+        <result property="minorGroupTitleChinese" column="minor_group_title_chinese" jdbcType="VARCHAR"/>
+        <result property="unitGroupTitle" column="unit_group_title" jdbcType="VARCHAR"/>
+        <result property="unitGroupTitleMalay" column="unit_group_title_malay" jdbcType="VARCHAR"/>
+        <result property="unitGroupTitleChinese" column="unit_group_title_chinese" jdbcType="VARCHAR"/>
+        <result property="unitGroupDescription" column="unit_group_description" jdbcType="VARCHAR"/>
+        <result property="unitGroupDescriptionMalay" column="unit_group_description_malay" jdbcType="VARCHAR"/>
+        <result property="unitGroupDescriptionChinese" column="unit_group_description_chinese" jdbcType="VARCHAR"/>
+        <result property="tasksInclude" column="tasks_include" jdbcType="VARCHAR"/>
+        <result property="tasksIncludeMalay" column="tasks_include_malay" jdbcType="VARCHAR"/>
+        <result property="tasksIncludeChinese" column="tasks_include_chinese" jdbcType="VARCHAR"/>
+        <result property="examples" column="examples" jdbcType="VARCHAR"/>
+        <result property="examplesMalay" column="examples_malay" jdbcType="VARCHAR"/>
+        <result property="examplesChinese" column="examples_chinese" jdbcType="VARCHAR"/>
+        <result property="skillLevel" column="skill_level" jdbcType="VARCHAR"/>
+        <result property="skillLevelMalay" column="skill_level_malay" jdbcType="VARCHAR"/>
+        <result property="skillLevelChinese" column="skill_level_chinese" jdbcType="VARCHAR"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        unit_group_code,major_group_code,major_group_title,
+        major_group_title_malay,major_group_title_chinese,sub_major_group_code,
+        sub_major_group_title,sub_major_group_title_malay,sub_major_group_title_chinese,
+        minor_group_code,minor_group_title,minor_group_title_malay,
+        minor_group_title_chinese,unit_group_title,unit_group_title_malay,
+        unit_group_title_chinese,unit_group_description,unit_group_description_malay,
+        unit_group_description_chinese,tasks_include,tasks_include_malay,
+        tasks_include_chinese,examples,examples_malay,
+        examples_chinese,skill_level,skill_level_malay,
+        skill_level_chinese
+    </sql>
+
+    <select id="selectByPrimaryKey" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from masco_job
+        where unit_group_code = #{unitGroupCode,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByMajorGroupCodeAndLang" resultMap="BaseResultMap">
+        SELECT
+        unit_group_code,
+        major_group_code,
+        sub_major_group_code,
+        minor_group_code,
+
+        <choose>
+            <when test="lang == 'ms'">
+                major_group_title_malay AS major_group_title,
+                sub_major_group_title_malay AS sub_major_group_title,
+                minor_group_title_malay AS minor_group_title,
+                unit_group_title_malay AS unit_group_title
+            </when>
+            <when test="lang == 'zh-CN'">
+                major_group_title_chinese AS major_group_title,
+                sub_major_group_title_chinese AS sub_major_group_title,
+                minor_group_title_chinese AS minor_group_title,
+                unit_group_title_chinese AS unit_group_title
+            </when>
+            <otherwise>
+                major_group_title,
+                sub_major_group_title,
+                minor_group_title,
+                unit_group_title
+            </otherwise>
+        </choose>
+
+        FROM masco_job
+        WHERE major_group_code = #{majorGroupCode}
+    </select>
+    <select id="selectByUnitGroupCodeAndLang" resultType="com.citacita.entity.MascoJob">
+        SELECT
+        unit_group_code,
+        major_group_code,
+        sub_major_group_code,
+        minor_group_code,
+
+        <choose>
+            <when test="lang == 'ms'">
+                major_group_title_malay AS major_group_title,
+                sub_major_group_title_malay AS sub_major_group_title,
+                minor_group_title_malay AS minor_group_title,
+                unit_group_title_malay AS unit_group_title,
+                unit_group_description_malay AS unit_group_description,
+                tasks_include_malay AS tasks_include,
+                examples_malay AS examples,
+                skill_level_malay AS skill_level
+            </when>
+            <when test="lang == 'zh-CN'">
+                major_group_title_chinese AS major_group_title,
+                sub_major_group_title_chinese AS sub_major_group_title,
+                minor_group_title_chinese AS minor_group_title,
+                unit_group_title_chinese AS unit_group_title,
+                unit_group_description_chinese AS unit_group_description,
+                tasks_include_chinese AS tasks_include,
+                examples_chinese AS examples,
+                skill_level_chinese AS skill_level
+            </when>
+            <otherwise>
+                major_group_title,
+                sub_major_group_title,
+                minor_group_title,
+                unit_group_title,
+                unit_group_description,
+                tasks_include,
+                examples,
+                skill_level
+            </otherwise>
+        </choose>
+
+        FROM masco_job
+        WHERE unit_group_code = #{unitGroupCode}
+    </select>
+    <select id="selectByLangAndUnitGroupTitle" resultType="com.citacita.entity.MascoJob">
+        SELECT unit_group_code,
+        <choose>
+            <when test="lang == 'ms'">
+                unit_group_title_malay AS unit_group_title
+            </when>
+            <when test="lang == 'zh-CN'">
+                unit_group_title_chinese AS unit_group_title
+            </when>
+            <otherwise>
+                unit_group_title
+            </otherwise>
+        </choose>
+        FROM masco_job
+        WHERE
+        <choose>
+            <when test="lang == 'ms'">
+                unit_group_title_malay LIKE CONCAT('%', #{unitGroupTitle}, '%')
+            </when>
+            <when test="lang == 'zh-CN'">
+                unit_group_title_chinese LIKE CONCAT('%', #{unitGroupTitle}, '%')
+            </when>
+            <otherwise>
+                unit_group_title LIKE CONCAT('%', #{unitGroupTitle}, '%')
+            </otherwise>
+        </choose>
+    </select>
+
+    <delete id="deleteByPrimaryKey" parameterType="java.lang.Long">
+        delete
+        from masco_job
+        where unit_group_code = #{unitGroupCode,jdbcType=VARCHAR}
+    </delete>
+    <insert id="insert" keyColumn="unit_group_code" keyProperty="unitGroupCode"
+            parameterType="com.citacita.entity.MascoJob" useGeneratedKeys="true">
+        insert into masco_job
+        ( unit_group_code, major_group_code, major_group_title
+        , major_group_title_malay, major_group_title_chinese, sub_major_group_code
+        , sub_major_group_title, sub_major_group_title_malay, sub_major_group_title_chinese
+        , minor_group_code, minor_group_title, minor_group_title_malay
+        , minor_group_title_chinese, unit_group_title, unit_group_title_malay
+        , unit_group_title_chinese, unit_group_description, unit_group_description_malay
+        , unit_group_description_chinese, tasks_include, tasks_include_malay
+        , tasks_include_chinese, examples, examples_malay
+        , examples_chinese, skill_level, skill_level_malay
+        , skill_level_chinese)
+        values ( #{unitGroupCode,jdbcType=VARCHAR}, #{majorGroupCode,jdbcType=VARCHAR}
+               , #{majorGroupTitle,jdbcType=VARCHAR}
+               , #{majorGroupTitleMalay,jdbcType=VARCHAR}, #{majorGroupTitleChinese,jdbcType=VARCHAR}
+               , #{subMajorGroupCode,jdbcType=VARCHAR}
+               , #{subMajorGroupTitle,jdbcType=VARCHAR}, #{subMajorGroupTitleMalay,jdbcType=VARCHAR}
+               , #{subMajorGroupTitleChinese,jdbcType=VARCHAR}
+               , #{minorGroupCode,jdbcType=VARCHAR}, #{minorGroupTitle,jdbcType=VARCHAR}
+               , #{minorGroupTitleMalay,jdbcType=VARCHAR}
+               , #{minorGroupTitleChinese,jdbcType=VARCHAR}, #{unitGroupTitle,jdbcType=VARCHAR}
+               , #{unitGroupTitleMalay,jdbcType=VARCHAR}
+               , #{unitGroupTitleChinese,jdbcType=VARCHAR}, #{unitGroupDescription,jdbcType=VARCHAR}
+               , #{unitGroupDescriptionMalay,jdbcType=VARCHAR}
+               , #{unitGroupDescriptionChinese,jdbcType=VARCHAR}, #{tasksInclude,jdbcType=VARCHAR}
+               , #{tasksIncludeMalay,jdbcType=VARCHAR}
+               , #{tasksIncludeChinese,jdbcType=VARCHAR}, #{examples,jdbcType=VARCHAR}
+               , #{examplesMalay,jdbcType=VARCHAR}
+               , #{examplesChinese,jdbcType=VARCHAR}, #{skillLevel,jdbcType=VARCHAR}
+               , #{skillLevelMalay,jdbcType=VARCHAR}
+               , #{skillLevelChinese,jdbcType=VARCHAR})
+    </insert>
+    <insert id="insertSelective" keyColumn="unit_group_code" keyProperty="unitGroupCode"
+            parameterType="com.citacita.entity.MascoJob" useGeneratedKeys="true">
+        insert into masco_job
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="unitGroupCode != null">unit_group_code,</if>
+            <if test="majorGroupCode != null">major_group_code,</if>
+            <if test="majorGroupTitle != null">major_group_title,</if>
+            <if test="majorGroupTitleMalay != null">major_group_title_malay,</if>
+            <if test="majorGroupTitleChinese != null">major_group_title_chinese,</if>
+            <if test="subMajorGroupCode != null">sub_major_group_code,</if>
+            <if test="subMajorGroupTitle != null">sub_major_group_title,</if>
+            <if test="subMajorGroupTitleMalay != null">sub_major_group_title_malay,</if>
+            <if test="subMajorGroupTitleChinese != null">sub_major_group_title_chinese,</if>
+            <if test="minorGroupCode != null">minor_group_code,</if>
+            <if test="minorGroupTitle != null">minor_group_title,</if>
+            <if test="minorGroupTitleMalay != null">minor_group_title_malay,</if>
+            <if test="minorGroupTitleChinese != null">minor_group_title_chinese,</if>
+            <if test="unitGroupTitle != null">unit_group_title,</if>
+            <if test="unitGroupTitleMalay != null">unit_group_title_malay,</if>
+            <if test="unitGroupTitleChinese != null">unit_group_title_chinese,</if>
+            <if test="unitGroupDescription != null">unit_group_description,</if>
+            <if test="unitGroupDescriptionMalay != null">unit_group_description_malay,</if>
+            <if test="unitGroupDescriptionChinese != null">unit_group_description_chinese,</if>
+            <if test="tasksInclude != null">tasks_include,</if>
+            <if test="tasksIncludeMalay != null">tasks_include_malay,</if>
+            <if test="tasksIncludeChinese != null">tasks_include_chinese,</if>
+            <if test="examples != null">examples,</if>
+            <if test="examplesMalay != null">examples_malay,</if>
+            <if test="examplesChinese != null">examples_chinese,</if>
+            <if test="skillLevel != null">skill_level,</if>
+            <if test="skillLevelMalay != null">skill_level_malay,</if>
+            <if test="skillLevelChinese != null">skill_level_chinese,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="unitGroupCode != null">#{unitGroupCode,jdbcType=VARCHAR},</if>
+            <if test="majorGroupCode != null">#{majorGroupCode,jdbcType=VARCHAR},</if>
+            <if test="majorGroupTitle != null">#{majorGroupTitle,jdbcType=VARCHAR},</if>
+            <if test="majorGroupTitleMalay != null">#{majorGroupTitleMalay,jdbcType=VARCHAR},</if>
+            <if test="majorGroupTitleChinese != null">#{majorGroupTitleChinese,jdbcType=VARCHAR},</if>
+            <if test="subMajorGroupCode != null">#{subMajorGroupCode,jdbcType=VARCHAR},</if>
+            <if test="subMajorGroupTitle != null">#{subMajorGroupTitle,jdbcType=VARCHAR},</if>
+            <if test="subMajorGroupTitleMalay != null">#{subMajorGroupTitleMalay,jdbcType=VARCHAR},</if>
+            <if test="subMajorGroupTitleChinese != null">#{subMajorGroupTitleChinese,jdbcType=VARCHAR},</if>
+            <if test="minorGroupCode != null">#{minorGroupCode,jdbcType=VARCHAR},</if>
+            <if test="minorGroupTitle != null">#{minorGroupTitle,jdbcType=VARCHAR},</if>
+            <if test="minorGroupTitleMalay != null">#{minorGroupTitleMalay,jdbcType=VARCHAR},</if>
+            <if test="minorGroupTitleChinese != null">#{minorGroupTitleChinese,jdbcType=VARCHAR},</if>
+            <if test="unitGroupTitle != null">#{unitGroupTitle,jdbcType=VARCHAR},</if>
+            <if test="unitGroupTitleMalay != null">#{unitGroupTitleMalay,jdbcType=VARCHAR},</if>
+            <if test="unitGroupTitleChinese != null">#{unitGroupTitleChinese,jdbcType=VARCHAR},</if>
+            <if test="unitGroupDescription != null">#{unitGroupDescription,jdbcType=VARCHAR},</if>
+            <if test="unitGroupDescriptionMalay != null">#{unitGroupDescriptionMalay,jdbcType=VARCHAR},</if>
+            <if test="unitGroupDescriptionChinese != null">#{unitGroupDescriptionChinese,jdbcType=VARCHAR},</if>
+            <if test="tasksInclude != null">#{tasksInclude,jdbcType=VARCHAR},</if>
+            <if test="tasksIncludeMalay != null">#{tasksIncludeMalay,jdbcType=VARCHAR},</if>
+            <if test="tasksIncludeChinese != null">#{tasksIncludeChinese,jdbcType=VARCHAR},</if>
+            <if test="examples != null">#{examples,jdbcType=VARCHAR},</if>
+            <if test="examplesMalay != null">#{examplesMalay,jdbcType=VARCHAR},</if>
+            <if test="examplesChinese != null">#{examplesChinese,jdbcType=VARCHAR},</if>
+            <if test="skillLevel != null">#{skillLevel,jdbcType=VARCHAR},</if>
+            <if test="skillLevelMalay != null">#{skillLevelMalay,jdbcType=VARCHAR},</if>
+            <if test="skillLevelChinese != null">#{skillLevelChinese,jdbcType=VARCHAR},</if>
+        </trim>
+    </insert>
+    <update id="updateByPrimaryKeySelective" parameterType="com.citacita.entity.MascoJob">
+        update masco_job
+        <set>
+            <if test="majorGroupCode != null">
+                major_group_code = #{majorGroupCode,jdbcType=VARCHAR},
+            </if>
+            <if test="majorGroupTitle != null">
+                major_group_title = #{majorGroupTitle,jdbcType=VARCHAR},
+            </if>
+            <if test="majorGroupTitleMalay != null">
+                major_group_title_malay = #{majorGroupTitleMalay,jdbcType=VARCHAR},
+            </if>
+            <if test="majorGroupTitleChinese != null">
+                major_group_title_chinese = #{majorGroupTitleChinese,jdbcType=VARCHAR},
+            </if>
+            <if test="subMajorGroupCode != null">
+                sub_major_group_code = #{subMajorGroupCode,jdbcType=VARCHAR},
+            </if>
+            <if test="subMajorGroupTitle != null">
+                sub_major_group_title = #{subMajorGroupTitle,jdbcType=VARCHAR},
+            </if>
+            <if test="subMajorGroupTitleMalay != null">
+                sub_major_group_title_malay = #{subMajorGroupTitleMalay,jdbcType=VARCHAR},
+            </if>
+            <if test="subMajorGroupTitleChinese != null">
+                sub_major_group_title_chinese = #{subMajorGroupTitleChinese,jdbcType=VARCHAR},
+            </if>
+            <if test="minorGroupCode != null">
+                minor_group_code = #{minorGroupCode,jdbcType=VARCHAR},
+            </if>
+            <if test="minorGroupTitle != null">
+                minor_group_title = #{minorGroupTitle,jdbcType=VARCHAR},
+            </if>
+            <if test="minorGroupTitleMalay != null">
+                minor_group_title_malay = #{minorGroupTitleMalay,jdbcType=VARCHAR},
+            </if>
+            <if test="minorGroupTitleChinese != null">
+                minor_group_title_chinese = #{minorGroupTitleChinese,jdbcType=VARCHAR},
+            </if>
+            <if test="unitGroupTitle != null">
+                unit_group_title = #{unitGroupTitle,jdbcType=VARCHAR},
+            </if>
+            <if test="unitGroupTitleMalay != null">
+                unit_group_title_malay = #{unitGroupTitleMalay,jdbcType=VARCHAR},
+            </if>
+            <if test="unitGroupTitleChinese != null">
+                unit_group_title_chinese = #{unitGroupTitleChinese,jdbcType=VARCHAR},
+            </if>
+            <if test="unitGroupDescription != null">
+                unit_group_description = #{unitGroupDescription,jdbcType=VARCHAR},
+            </if>
+            <if test="unitGroupDescriptionMalay != null">
+                unit_group_description_malay = #{unitGroupDescriptionMalay,jdbcType=VARCHAR},
+            </if>
+            <if test="unitGroupDescriptionChinese != null">
+                unit_group_description_chinese = #{unitGroupDescriptionChinese,jdbcType=VARCHAR},
+            </if>
+            <if test="tasksInclude != null">
+                tasks_include = #{tasksInclude,jdbcType=VARCHAR},
+            </if>
+            <if test="tasksIncludeMalay != null">
+                tasks_include_malay = #{tasksIncludeMalay,jdbcType=VARCHAR},
+            </if>
+            <if test="tasksIncludeChinese != null">
+                tasks_include_chinese = #{tasksIncludeChinese,jdbcType=VARCHAR},
+            </if>
+            <if test="examples != null">
+                examples = #{examples,jdbcType=VARCHAR},
+            </if>
+            <if test="examplesMalay != null">
+                examples_malay = #{examplesMalay,jdbcType=VARCHAR},
+            </if>
+            <if test="examplesChinese != null">
+                examples_chinese = #{examplesChinese,jdbcType=VARCHAR},
+            </if>
+            <if test="skillLevel != null">
+                skill_level = #{skillLevel,jdbcType=VARCHAR},
+            </if>
+            <if test="skillLevelMalay != null">
+                skill_level_malay = #{skillLevelMalay,jdbcType=VARCHAR},
+            </if>
+            <if test="skillLevelChinese != null">
+                skill_level_chinese = #{skillLevelChinese,jdbcType=VARCHAR},
+            </if>
+        </set>
+        where unit_group_code = #{unitGroupCode,jdbcType=VARCHAR}
+    </update>
+    <update id="updateByPrimaryKey" parameterType="com.citacita.entity.MascoJob">
+        update masco_job
+        set major_group_code               = #{majorGroupCode,jdbcType=VARCHAR},
+            major_group_title              = #{majorGroupTitle,jdbcType=VARCHAR},
+            major_group_title_malay        = #{majorGroupTitleMalay,jdbcType=VARCHAR},
+            major_group_title_chinese      = #{majorGroupTitleChinese,jdbcType=VARCHAR},
+            sub_major_group_code           = #{subMajorGroupCode,jdbcType=VARCHAR},
+            sub_major_group_title          = #{subMajorGroupTitle,jdbcType=VARCHAR},
+            sub_major_group_title_malay    = #{subMajorGroupTitleMalay,jdbcType=VARCHAR},
+            sub_major_group_title_chinese  = #{subMajorGroupTitleChinese,jdbcType=VARCHAR},
+            minor_group_code               = #{minorGroupCode,jdbcType=VARCHAR},
+            minor_group_title              = #{minorGroupTitle,jdbcType=VARCHAR},
+            minor_group_title_malay        = #{minorGroupTitleMalay,jdbcType=VARCHAR},
+            minor_group_title_chinese      = #{minorGroupTitleChinese,jdbcType=VARCHAR},
+            unit_group_title               = #{unitGroupTitle,jdbcType=VARCHAR},
+            unit_group_title_malay         = #{unitGroupTitleMalay,jdbcType=VARCHAR},
+            unit_group_title_chinese       = #{unitGroupTitleChinese,jdbcType=VARCHAR},
+            unit_group_description         = #{unitGroupDescription,jdbcType=VARCHAR},
+            unit_group_description_malay   = #{unitGroupDescriptionMalay,jdbcType=VARCHAR},
+            unit_group_description_chinese = #{unitGroupDescriptionChinese,jdbcType=VARCHAR},
+            tasks_include                  = #{tasksInclude,jdbcType=VARCHAR},
+            tasks_include_malay            = #{tasksIncludeMalay,jdbcType=VARCHAR},
+            tasks_include_chinese          = #{tasksIncludeChinese,jdbcType=VARCHAR},
+            examples                       = #{examples,jdbcType=VARCHAR},
+            examples_malay                 = #{examplesMalay,jdbcType=VARCHAR},
+            examples_chinese               = #{examplesChinese,jdbcType=VARCHAR},
+            skill_level                    = #{skillLevel,jdbcType=VARCHAR},
+            skill_level_malay              = #{skillLevelMalay,jdbcType=VARCHAR},
+            skill_level_chinese            = #{skillLevelChinese,jdbcType=VARCHAR}
+        where unit_group_code = #{unitGroupCode,jdbcType=VARCHAR}
+    </update>
+</mapper>

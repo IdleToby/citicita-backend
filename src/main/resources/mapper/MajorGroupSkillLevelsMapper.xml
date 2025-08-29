@@ -5,7 +5,7 @@
 <mapper namespace="com.citacita.mapper.MajorGroupSkillLevelsMapper">
 
     <resultMap id="BaseResultMap" type="com.citacita.entity.MajorGroupSkillLevels">
-            <id property="majorGroupCode" column="major_group_code" jdbcType="INTEGER"/>
+            <id property="majorGroupCode" column="major_group_code" jdbcType="VARCHAR"/>
             <result property="majorGroupTitle" column="major_group_title" jdbcType="VARCHAR"/>
             <result property="majorGroupTitleMalay" column="major_group_title_malay" jdbcType="VARCHAR"/>
             <result property="majorGroupTitleChinese" column="major_group_title_chinese" jdbcType="VARCHAR"/>

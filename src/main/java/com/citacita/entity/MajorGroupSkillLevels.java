@@ -8,7 +8,7 @@ import lombok.Data;
  */
 @Data
 public class MajorGroupSkillLevels implements Serializable {
-    private Integer majorGroupCode;
+    private String majorGroupCode;
 
     private String majorGroupTitle;
 
