@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.citacita.mapper.MajorGroupSkillLevelsMapper">
+
+    <resultMap id="BaseResultMap" type="com.citacita.entity.MajorGroupSkillLevels">
+            <id property="majorGroupCode" column="major_group_code" jdbcType="INTEGER"/>
+            <result property="majorGroupTitle" column="major_group_title" jdbcType="VARCHAR"/>
+            <result property="majorGroupTitleMalay" column="major_group_title_malay" jdbcType="VARCHAR"/>
+            <result property="majorGroupTitleChinese" column="major_group_title_chinese" jdbcType="VARCHAR"/>
+            <result property="educationLevel" column="education_level" jdbcType="VARCHAR"/>
+            <result property="educationLevelMalay" column="education_level_malay" jdbcType="VARCHAR"/>
+            <result property="educationLevelChinese" column="education_level_chinese" jdbcType="VARCHAR"/>
+            <result property="skillLevel" column="skill_level" jdbcType="VARCHAR"/>
+            <result property="skillLevelMalay" column="skill_level_malay" jdbcType="VARCHAR"/>
+            <result property="skillLevelChinese" column="skill_level_chinese" jdbcType="VARCHAR"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        major_group_code,major_group_title,major_group_title_malay,
+        major_group_title_chinese,education_level,education_level_malay,
+        education_level_chinese,skill_level,skill_level_malay,
+        skill_level_chinese
+    </sql>
+
+    <select id="selectByPrimaryKey" parameterType="java.lang.Long" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from major_group_skill_levels
+        where major_group_code = #{majorGroupCode,jdbcType=VARCHAR}
+    </select>
+    <select id="selectByLang" resultType="com.citacita.entity.MajorGroupSkillLevels">
+        SELECT
+        major_group_code,
+        <choose>
+            <when test="lang == 'ms'.toString()">
+                major_group_title_malay AS major_group_title,
+                education_level_malay AS education_level,
+                skill_level_malay AS skill_level
+            </when>
+
+            <when test="lang == 'zh-CN'.toString()">
+                major_group_title_chinese AS major_group_title,
+                education_level_chinese AS education_level,
+                skill_level_chinese AS skill_level
+            </when>
+
+            <otherwise>
+                major_group_title AS major_group_title,
+                education_level AS education_level,
+                skill_level AS skill_level
+            </otherwise>
+        </choose>
+        FROM
+        major_group_skill_levels
+    </select>
+    <select id="selectByLangAndId" resultType="com.citacita.entity.MajorGroupSkillLevels">
+        SELECT
+        major_group_code,
+        <choose>
+            <when test="lang == 'ms'.toString()">
+                major_group_title_malay AS major_group_title,
+                education_level_malay AS education_level,
+                skill_level_malay AS skill_level
+            </when>
+
+            <when test="lang == 'zh-CN'.toString()">
+                major_group_title_chinese AS major_group_title,
+                education_level_chinese AS education_level,
+                skill_level_chinese AS skill_level
+            </when>
+
+            <otherwise>
+                major_group_title AS major_group_title,
+                education_level AS education_level,
+                skill_level AS skill_level
+            </otherwise>
+        </choose>
+        FROM
+        major_group_skill_levels
+        WHERE major_group_code = #{majorGroupCode,jdbcType=VARCHAR}
+    </select>
+
+    <delete id="deleteByPrimaryKey" parameterType="java.lang.Long">
+        delete from major_group_skill_levels
+        where  major_group_code = #{majorGroupCode,jdbcType=VARCHAR} 
+    </delete>
+    <insert id="insert" keyColumn="major_group_code" keyProperty="majorGroupCode" parameterType="com.citacita.entity.MajorGroupSkillLevels" useGeneratedKeys="true">
+        insert into major_group_skill_levels
+        ( major_group_code,major_group_title,major_group_title_malay
+        ,major_group_title_chinese,education_level,education_level_malay
+        ,education_level_chinese,skill_level,skill_level_malay
+        ,skill_level_chinese)
+        values (#{majorGroupCode,jdbcType=VARCHAR},#{majorGroupTitle,jdbcType=VARCHAR},#{majorGroupTitleMalay,jdbcType=VARCHAR}
+        ,#{majorGroupTitleChinese,jdbcType=VARCHAR},#{educationLevel,jdbcType=VARCHAR},#{educationLevelMalay,jdbcType=VARCHAR}
+        ,#{educationLevelChinese,jdbcType=VARCHAR},#{skillLevel,jdbcType=VARCHAR},#{skillLevelMalay,jdbcType=VARCHAR}
+        ,#{skillLevelChinese,jdbcType=VARCHAR})
+    </insert>
+    <insert id="insertSelective" keyColumn="major_group_code" keyProperty="majorGroupCode" parameterType="com.citacita.entity.MajorGroupSkillLevels" useGeneratedKeys="true">
+        insert into major_group_skill_levels
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+                <if test="majorGroupCode != null">major_group_code,</if>
+                <if test="majorGroupTitle != null">major_group_title,</if>
+                <if test="majorGroupTitleMalay != null">major_group_title_malay,</if>
+                <if test="majorGroupTitleChinese != null">major_group_title_chinese,</if>
+                <if test="educationLevel != null">education_level,</if>
+                <if test="educationLevelMalay != null">education_level_malay,</if>
+                <if test="educationLevelChinese != null">education_level_chinese,</if>
+                <if test="skillLevel != null">skill_level,</if>
+                <if test="skillLevelMalay != null">skill_level_malay,</if>
+                <if test="skillLevelChinese != null">skill_level_chinese,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+                <if test="majorGroupCode != null">#{majorGroupCode,jdbcType=VARCHAR},</if>
+                <if test="majorGroupTitle != null">#{majorGroupTitle,jdbcType=VARCHAR},</if>
+                <if test="majorGroupTitleMalay != null">#{majorGroupTitleMalay,jdbcType=VARCHAR},</if>
+                <if test="majorGroupTitleChinese != null">#{majorGroupTitleChinese,jdbcType=VARCHAR},</if>
+                <if test="educationLevel != null">#{educationLevel,jdbcType=VARCHAR},</if>
+                <if test="educationLevelMalay != null">#{educationLevelMalay,jdbcType=VARCHAR},</if>
+                <if test="educationLevelChinese != null">#{educationLevelChinese,jdbcType=VARCHAR},</if>
+                <if test="skillLevel != null">#{skillLevel,jdbcType=VARCHAR},</if>
+                <if test="skillLevelMalay != null">#{skillLevelMalay,jdbcType=VARCHAR},</if>
+                <if test="skillLevelChinese != null">#{skillLevelChinese,jdbcType=VARCHAR},</if>
+        </trim>
+    </insert>
+    <update id="updateByPrimaryKeySelective" parameterType="com.citacita.entity.MajorGroupSkillLevels">
+        update major_group_skill_levels
+        <set>
+                <if test="majorGroupTitle != null">
+                    major_group_title = #{majorGroupTitle,jdbcType=VARCHAR},
+                </if>
+                <if test="majorGroupTitleMalay != null">
+                    major_group_title_malay = #{majorGroupTitleMalay,jdbcType=VARCHAR},
+                </if>
+                <if test="majorGroupTitleChinese != null">
+                    major_group_title_chinese = #{majorGroupTitleChinese,jdbcType=VARCHAR},
+                </if>
+                <if test="educationLevel != null">
+                    education_level = #{educationLevel,jdbcType=VARCHAR},
+                </if>
+                <if test="educationLevelMalay != null">
+                    education_level_malay = #{educationLevelMalay,jdbcType=VARCHAR},
+                </if>
+                <if test="educationLevelChinese != null">
+                    education_level_chinese = #{educationLevelChinese,jdbcType=VARCHAR},
+                </if>
+                <if test="skillLevel != null">
+                    skill_level = #{skillLevel,jdbcType=VARCHAR},
+                </if>
+                <if test="skillLevelMalay != null">
+                    skill_level_malay = #{skillLevelMalay,jdbcType=VARCHAR},
+                </if>
+                <if test="skillLevelChinese != null">
+                    skill_level_chinese = #{skillLevelChinese,jdbcType=VARCHAR},
+                </if>
+        </set>
+        where   major_group_code = #{majorGroupCode,jdbcType=VARCHAR} 
+    </update>
+    <update id="updateByPrimaryKey" parameterType="com.citacita.entity.MajorGroupSkillLevels">
+        update major_group_skill_levels
+        set 
+            major_group_title =  #{majorGroupTitle,jdbcType=VARCHAR},
+            major_group_title_malay =  #{majorGroupTitleMalay,jdbcType=VARCHAR},
+            major_group_title_chinese =  #{majorGroupTitleChinese,jdbcType=VARCHAR},
+            education_level =  #{educationLevel,jdbcType=VARCHAR},
+            education_level_malay =  #{educationLevelMalay,jdbcType=VARCHAR},
+            education_level_chinese =  #{educationLevelChinese,jdbcType=VARCHAR},
+            skill_level =  #{skillLevel,jdbcType=VARCHAR},
+            skill_level_malay =  #{skillLevelMalay,jdbcType=VARCHAR},
+            skill_level_chinese =  #{skillLevelChinese,jdbcType=VARCHAR}
+        where   major_group_code = #{majorGroupCode,jdbcType=VARCHAR} 
+    </update>
+</mapper>
