@@ -7,6 +7,7 @@ import com.citacita.service.JobService;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.Mac;
 import java.util.List;
 
 @Service
@@ -34,6 +35,11 @@ public class JobServiceImpl implements JobService {
         return entities.stream()
                 .map(this::convertToDto)
                 .toList();
+    }
+
+    @Override
+    public List<MascoJob> getAllJobs() {
+        return mascoJobMapper.selectAll();
     }
 
     private JobDTO convertToDto(MascoJob entity) {

@@ -2,6 +2,7 @@ package com.citacita.controller;
 
 import com.citacita.dto.JobDTO;
 import com.citacita.dto.ResultDTO;
+import com.citacita.entity.MascoJob;
 import com.citacita.service.JobService;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,6 +34,12 @@ public class JobController {
     @GetMapping("/autoCompleteJobByLangAndUnitGroupTitle")
     public ResultDTO<List<JobDTO>> getJobListByLangAndUnitGroupTitle(@RequestParam(name = "lang", defaultValue = "en") String lang, String unitGroupTitle) {
         List<JobDTO> rows = skillService.getJobListByLangAndUnitGroupTitle(lang, unitGroupTitle);
+        return ResultDTO.success(rows);
+    }
+
+    @GetMapping("/getAllJobs")
+    public ResultDTO<List<?>> getAllJobs() {
+        List<MascoJob> rows = skillService.getAllJobs();
         return ResultDTO.success(rows);
     }
 

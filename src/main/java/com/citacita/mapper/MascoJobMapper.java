@@ -2,6 +2,7 @@ package com.citacita.mapper;
 
 import com.citacita.entity.MascoJob;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
 
@@ -24,6 +25,9 @@ public interface MascoJobMapper {
     int updateByPrimaryKeySelective(MascoJob record);
 
     int updateByPrimaryKey(MascoJob record);
+
+    @Select("SELECT * FROM masco_job")
+    List<MascoJob> selectAll();
 
     List<MascoJob> selectByMajorGroupCodeAndLang(@Param("lang") String lang, @Param("majorGroupCode") String majorGroupCode);
 
