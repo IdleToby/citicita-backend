@@ -61,7 +61,7 @@ public class AzureStreamService {
             bodyBuilder.part("audio", filePart);
             bodyBuilder.part(
                     "definition",
-                    "{\"locales\":[\"en-US\"]}",
+                    "{\"locales\":[\"en-US\",\"zh-CN\"]}",
                     MediaType.APPLICATION_JSON
             );
 
