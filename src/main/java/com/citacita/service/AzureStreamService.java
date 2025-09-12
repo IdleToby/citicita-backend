@@ -27,15 +27,14 @@ public class AzureStreamService {
             @Value("${azure.speech.endpoint}") String speechEndpoint,
             @Value("${azure.speech.apiKey}") String speechKey
     ) {
-        // OpenAI Chat Completions - UNCHANGED
+        // OpenAI Chat Completions
         this.openAiClient = WebClient.builder()
                 .baseUrl(openAiEndpoint)
                 .defaultHeader("Authorization", "Bearer " + openAiKey)
                 .defaultHeader("Content-Type", "application/json")
                 .build();
 
-        // Azure Speech-to-Text - MODIFIED
-        // Removed default Content-Type as it changes between streaming and batch.
+        // Azure Speech-to-Text
         this.speechClient = WebClient.builder()
                 .baseUrl(speechEndpoint)
                 .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
