@@ -43,16 +43,24 @@ public class AzureStreamService {
     }
 
     /**
-     * 调用 Azure OpenAI Chat Completions - UNCHANGED
+     * 调用 Azure OpenAI Chat
      */
-    public Flux<String> streamChat(Map<String, Object> body) {
-        return openAiClient.post()
-                .uri("/models/chat/completions?api-version=2024-05-01-preview")
-                .bodyValue(body)
-                .accept(MediaType.TEXT_EVENT_STREAM)
-                .retrieve()
-                .bodyToFlux(String.class);
-    }
+        public Flux<String> streamChat(Map<String, Object> body) {
+                return openAiClient.post()
+                        .uri("/models/chat/completions?api-version=2024-05-01-preview")
+                        .bodyValue(body)
+                        .accept(MediaType.TEXT_EVENT_STREAM)
+                        .retrieve()
+                        .onStatus(
+                        HttpStatusCode::isError,
+                        clientResponse -> clientResponse.bodyToMono(String.class)
+                                .flatMap(errorBody -> {
+                                System.err.println("OpenAI API Error: " + errorBody);
+                                return Mono.error(new RuntimeException("OpenAI API failed: " + errorBody));
+                                })
+                        )
+                        .bodyToFlux(String.class);
+        }
 
     public Mono<Map<String, Object>> transcribeBatch(Mono<FilePart> filePartMono) {
         return filePartMono.flatMap(filePart -> {
