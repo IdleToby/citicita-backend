@@ -377,4 +377,127 @@
             skill_level_chinese            = #{skillLevelChinese,jdbcType=VARCHAR}
         where unit_group_code = #{unitGroupCode,jdbcType=VARCHAR}
     </update>
+    <!-- 分页获取工作记录 -->
+    <select id="selectJobsWithPagination" resultMap="BaseResultMap">
+        SELECT * FROM masco_job
+        ORDER BY unit_group_code
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 根据关键词搜索工作 -->
+    <select id="searchJobsByKeywords" resultMap="BaseResultMap">
+        SELECT * FROM masco_job
+        WHERE
+        <choose>
+            <when test="lang == 'ms'">
+                (unit_group_title_malay LIKE CONCAT('%', #{keywords}, '%')
+                OR unit_group_description_malay LIKE CONCAT('%', #{keywords}, '%')
+                OR tasks_include_malay LIKE CONCAT('%', #{keywords}, '%')
+                OR examples_malay LIKE CONCAT('%', #{keywords}, '%')
+                OR major_group_title_malay LIKE CONCAT('%', #{keywords}, '%'))
+            </when>
+            <when test="lang == 'zh-CN'">
+                (unit_group_title_chinese LIKE CONCAT('%', #{keywords}, '%')
+                OR unit_group_description_chinese LIKE CONCAT('%', #{keywords}, '%')
+                OR tasks_include_chinese LIKE CONCAT('%', #{keywords}, '%')
+                OR examples_chinese LIKE CONCAT('%', #{keywords}, '%')
+                OR major_group_title_chinese LIKE CONCAT('%', #{keywords}, '%'))
+            </when>
+            <otherwise>
+                (unit_group_title LIKE CONCAT('%', #{keywords}, '%')
+                OR unit_group_description LIKE CONCAT('%', #{keywords}, '%')
+                OR tasks_include LIKE CONCAT('%', #{keywords}, '%')
+                OR examples LIKE CONCAT('%', #{keywords}, '%')
+                OR major_group_title LIKE CONCAT('%', #{keywords}, '%')
+                OR unit_group_code = #{keywords})
+            </otherwise>
+        </choose>
+        ORDER BY
+        CASE
+            WHEN unit_group_code = #{keywords} THEN 1
+            <choose>
+                <when test="lang == 'ms'">
+                    WHEN unit_group_title_malay = #{keywords} THEN 2
+                    WHEN unit_group_title_malay LIKE CONCAT(#{keywords}, '%') THEN 3
+                </when>
+                <when test="lang == 'zh-CN'">
+                    WHEN unit_group_title_chinese = #{keywords} THEN 2
+                    WHEN unit_group_title_chinese LIKE CONCAT(#{keywords}, '%') THEN 3
+                </when>
+                <otherwise>
+                    WHEN unit_group_title = #{keywords} THEN 2
+                    WHEN unit_group_title LIKE CONCAT(#{keywords}, '%') THEN 3
+                </otherwise>
+            </choose>
+            ELSE 4
+        END
+        LIMIT #{limit}
+    </select>
+
+    <!-- 批量查询unit_group_codes -->
+    <select id="selectByUnitGroupCodes" resultMap="BaseResultMap">
+        SELECT * FROM masco_job
+        WHERE unit_group_code IN
+        <foreach item="code" collection="unitGroupCodes" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+        ORDER BY unit_group_code
+    </select>
+
+    <!-- 模糊搜索工作标题和描述 -->
+    <select id="searchJobsByTitleAndDescription" resultMap="BaseResultMap">
+        SELECT * FROM masco_job
+        WHERE
+        <choose>
+            <when test="lang == 'ms'">
+                (unit_group_title_malay LIKE CONCAT('%', #{searchTerm}, '%')
+                OR unit_group_description_malay LIKE CONCAT('%', #{searchTerm}, '%')
+                OR major_group_title_malay LIKE CONCAT('%', #{searchTerm}, '%')
+                OR sub_major_group_title_malay LIKE CONCAT('%', #{searchTerm}, '%')
+                OR minor_group_title_malay LIKE CONCAT('%', #{searchTerm}, '%'))
+            </when>
+            <when test="lang == 'zh-CN'">
+                (unit_group_title_chinese LIKE CONCAT('%', #{searchTerm}, '%')
+                OR unit_group_description_chinese LIKE CONCAT('%', #{searchTerm}, '%')
+                OR major_group_title_chinese LIKE CONCAT('%', #{searchTerm}, '%')
+                OR sub_major_group_title_chinese LIKE CONCAT('%', #{searchTerm}, '%')
+                OR minor_group_title_chinese LIKE CONCAT('%', #{searchTerm}, '%'))
+            </when>
+            <otherwise>
+                (unit_group_title LIKE CONCAT('%', #{searchTerm}, '%')
+                OR unit_group_description LIKE CONCAT('%', #{searchTerm}, '%')
+                OR major_group_title LIKE CONCAT('%', #{searchTerm}, '%')
+                OR sub_major_group_title LIKE CONCAT('%', #{searchTerm}, '%')
+                OR minor_group_title LIKE CONCAT('%', #{searchTerm}, '%')
+                OR unit_group_code = #{searchTerm})
+            </otherwise>
+        </choose>
+        ORDER BY
+        CASE
+            WHEN unit_group_code = #{searchTerm} THEN 1
+            <choose>
+                <when test="lang == 'ms'">
+                    WHEN unit_group_title_malay = #{searchTerm} THEN 2
+                    WHEN unit_group_title_malay LIKE CONCAT(#{searchTerm}, '%') THEN 3
+                </when>
+                <when test="lang == 'zh-CN'">
+                    WHEN unit_group_title_chinese = #{searchTerm} THEN 2
+                    WHEN unit_group_title_chinese LIKE CONCAT(#{searchTerm}, '%') THEN 3
+                </when>
+                <otherwise>
+                    WHEN unit_group_title = #{searchTerm} THEN 2
+                    WHEN unit_group_title LIKE CONCAT(#{searchTerm}, '%') THEN 3
+                </otherwise>
+            </choose>
+            ELSE 4
+        END
+        LIMIT #{limit}
+    </select>
+
+    <!-- 根据unit_group_code获取单个记录 -->
+    <select id="selectByUnitGroupCode" resultMap="BaseResultMap">
+        SELECT * FROM masco_job
+        WHERE unit_group_code = #{unitGroupCode}
+    </select>
+
 </mapper>

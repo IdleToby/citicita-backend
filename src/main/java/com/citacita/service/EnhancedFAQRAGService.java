@@ -1,5 +1,7 @@
 package com.citacita.service;
 
+import com.citacita.entity.MascoJob;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -8,7 +10,10 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
-public class FAQBasedRAGService {
+public class EnhancedFAQRAGService {
+
+    @Autowired
+    private MascoJobDatabaseService mascoJobService;
 
     // FAQ知识库 - 包含FAQ和Grants信息
     private final Map<String, FAQ> faqDatabase;
@@ -17,41 +22,148 @@ public class FAQBasedRAGService {
     private final Pattern chinesePattern = Pattern.compile("[\\u4e00-\\u9fff]+");
     private final Pattern englishPattern = Pattern.compile("[a-zA-Z]+");
 
-    public FAQBasedRAGService() {
+    public EnhancedFAQRAGService() {
         this.faqDatabase = initializeFAQDatabase();
     }
 
     /**
-     * 基于FAQ+Grants的智能检索（带语言检测和输入验证）
+     * 基于FAQ+Grants+Jobs的智能检索（修复阻塞问题）
      */
     public Mono<String> retrieveRelevantContent(String query) {
-        return Mono.fromCallable(() -> {
-            try {
-                String lowerQuery = query.toLowerCase();
-                
-                // 检测用户使用的语言
-                String detectedLanguage = detectLanguage(query);
-                
-                // 1. 直接匹配FAQ和Grants
-                List<FAQ> matchedFAQs = findMatchingFAQs(lowerQuery);
-                
-                if (!matchedFAQs.isEmpty()) {
-                    return formatFAQResponse(matchedFAQs, detectedLanguage);
-                }
-                
-                // 2. 检查是否为低相关性查询（需要引导用户重新输入）
-                if (isLowRelevanceQuery(lowerQuery)) {
-                    return generateLowRelevanceResponse(lowerQuery, detectedLanguage);
-                }
-                
-                // 3. 如果没有直接匹配但不是完全无关，返回相关的通用信息
-                return getRelatedGuidance(lowerQuery, detectedLanguage);
-                
-            } catch (Exception e) {
-                System.err.println("FAQ RAG检索错误: " + e.getMessage());
-                return getDefaultGuidance("chinese"); // 默认中文
+        try {
+            String lowerQuery = query.toLowerCase();
+            
+            // 检测用户使用的语言
+            String detectedLanguage = detectLanguage(query);
+            
+            // 1. 首先检查工作相关查询 - 优先级最高
+            if (isJobRelatedQuery(lowerQuery)) {
+                return processJobQuery(lowerQuery, detectedLanguage);
             }
-        });
+            
+            // 2. 检查FAQ和Grants
+            List<FAQ> matchedFAQs = findMatchingFAQs(lowerQuery);
+            if (!matchedFAQs.isEmpty()) {
+                return Mono.just(formatFAQResponse(matchedFAQs, detectedLanguage));
+            }
+            
+            // 3. 检查是否为低相关性查询（需要引导用户重新输入）
+            if (isLowRelevanceQuery(lowerQuery)) {
+                return Mono.just(generateLowRelevanceResponse(lowerQuery, detectedLanguage));
+            }
+            
+            // 4. 如果没有直接匹配但不是完全无关，返回相关的通用信息
+            return Mono.just(getRelatedGuidance(lowerQuery, detectedLanguage));
+            
+        } catch (Exception e) {
+            System.err.println("Enhanced FAQ RAG检索错误: " + e.getMessage());
+            return Mono.just(getDefaultGuidance("chinese")); // 默认中文
+        }
+    }
+
+    /**
+     * 处理工作相关查询（修复阻塞问题）
+     */
+    private Mono<String> processJobQuery(String query, String language) {
+        return mascoJobService.searchJobs(query, language, 3)
+            .map(jobs -> {
+                if (!jobs.isEmpty()) {
+                    return mascoJobService.formatJobsForRAG(jobs, language);
+                } else {
+                    // 如果没有找到工作，提供相关建议
+                    return getJobSearchGuidance(query, language);
+                }
+            })
+            .doOnError(error -> {
+                System.err.println("处理工作查询错误: " + error.getMessage());
+            })
+            .onErrorReturn(getJobSearchGuidance(query, language));
+    }
+
+    /**
+     * 判断是否为工作相关查询
+     */
+    private boolean isJobRelatedQuery(String query) {
+        // 扩展工作相关关键词
+        String[] jobKeywords = {
+            // 英文关键词
+            "job", "career", "work", "position", "role", "occupation", "employment",
+            "developer", "engineer", "manager", "analyst", "consultant", "technician",
+            "programmer", "designer", "administrator", "coordinator", "specialist",
+            "accountant", "nurse", "teacher", "lawyer", "doctor", "chef", "mechanic",
+            "salary", "skills", "requirement", "qualification", "experience",
+            "what job", "job title", "job description", "career path", "job code",
+            
+            // 中文关键词
+            "工作", "职业", "职位", "岗位", "就业", "求职", "招聘",
+            "开发", "工程师", "经理", "分析师", "顾问", "技术员",
+            "程序员", "设计师", "管理员", "协调员", "专家",
+            "会计", "护士", "老师", "律师", "医生", "厨师", "机械师",
+            "薪资", "薪水", "技能", "要求", "资格", "经验",
+            "什么工作", "职位名称", "工作描述", "职业发展", "工作代码",
+            
+            // 马来语关键词
+            "kerja", "kerjaya", "jawatan", "pekerjaan", "gaji", "kemahiran",
+            
+            // MASCO相关
+            "masco", "职业分类", "occupation classification"
+        };
+        
+        for (String keyword : jobKeywords) {
+            if (query.contains(keyword.toLowerCase())) {
+                return true;
+            }
+        }
+        
+        // 检查是否包含职位代码模式 (如: 2111, 1234)
+        if (query.matches(".*\\b\\d{4}\\b.*")) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * 为找不到工作时提供指导
+     */
+    private String getJobSearchGuidance(String query, String language) {
+        if ("chinese".equals(language)) {
+            return String.format("""
+                很抱歉，我没有找到与"%s"直接匹配的工作信息。
+                
+                **建议您可以尝试：**
+                • 使用更具体的职位名称，如"软件开发员"、"会计师"、"护士"
+                • 搜索工作代码，如"2111"、"2421"
+                • 询问特定行业的工作，如"IT行业有什么工作？"
+                • 使用英文或马来文搜索，如"software developer"
+                
+                **或者您可以问我：**
+                • "有什么IT相关的工作？"
+                • "管理类工作有哪些？"
+                • "什么工作适合我？"（可以先做我们的职业测验）
+                • "专业组1有什么工作？"（按MASCO分类）
+                
+                我还可以帮您了解政府补助、AI工具使用等其他信息！
+                """, query);
+        } else {
+            return String.format("""
+                Sorry, I couldn't find job information directly matching "%s".
+                
+                **You can try:**
+                • Use specific job titles like "software developer", "accountant", "nurse"
+                • Search by job codes like "2111", "2421"
+                • Ask about specific industries like "What IT jobs are available?"
+                • Try searching in Chinese or Malay
+                
+                **Or you can ask me:**
+                • "What IT-related jobs are there?"
+                • "What management jobs are available?"
+                • "What jobs are suitable for me?" (try our career quiz first)
+                • "What jobs are in major group 1?" (by MASCO classification)
+                
+                I can also help you learn about government grants, AI tools, and other information!
+                """, query);
+        }
     }
 
     /**
@@ -87,14 +199,14 @@ public class FAQBasedRAGService {
      */
     private boolean isLowRelevanceQuery(String query) {
         // 获取所有FAQ的最高匹配分数
-        int maxScore = 0;
+        int maxFAQScore = 0;
         for (FAQ faq : faqDatabase.values()) {
             int score = calculateMatchScore(query, faq);
-            maxScore = Math.max(maxScore, score);
+            maxFAQScore = Math.max(maxFAQScore, score);
         }
         
-        // 如果最高分数为0，认为是完全无关的查询
-        return maxScore == 0;
+        // 如果FAQ最高分数为0且不是工作相关查询，认为是完全无关的查询
+        return maxFAQScore == 0 && !isJobRelatedQuery(query);
     }
 
     /**
@@ -122,6 +234,9 @@ public class FAQBasedRAGService {
             
             **工作和职业相关：**
             • "有什么工作适合我？"
+            • "软件开发员是做什么的？"
+            • "工作代码2111是什么？"
+            • "专业组1有哪些工作？"
             • "工作测验怎么使用？"
             • "如何查看职位要求？"
             
@@ -139,8 +254,10 @@ public class FAQBasedRAGService {
             • "地图功能如何使用？"
             • "哪里可以找到托儿所？"
             
+            %s
+            
             请尝试问我以上相关的问题，我会很乐意为您详细解答!
-            """, query, suggestion);
+            """, suggestion);
     }
 
     /**
@@ -154,27 +271,32 @@ public class FAQBasedRAGService {
             
             I'm specifically designed to help with CitaCita career matching platform, and I can assist you with:
             
-            Jobs & Career:
+            **Jobs & Career:**
             • "What jobs are suitable for me?"
+            • "What does a software developer do?"
+            • "What is job code 2111?"
+            • "What jobs are in major group 1?"
             • "How to use the job quiz?"
             • "How to check job requirements?"
             
-            AI Tools:
+            **AI Tools:**
             • "How does the AI Resume Checker work?"
             • "What is the AI Mock Interview?"
             • "What can the chatbot help me with?"
             
-            Government Grants & Support:
+            **Government Grants & Support:**
             • "What grants are available for women returning to work?"
             • "What government entrepreneurship support programs exist?"
             • "What tax relief policies are available?"
             
-            Support Services:
+            **Support Services:**
             • "How to use the map function?"
             • "Where can I find childcare centers?"
             
+            %s
+            
             Please try asking me questions related to the above topics, and I'll be happy to help in detail!
-            """, query, suggestion);
+            """, suggestion);
     }
     
 
@@ -193,8 +315,10 @@ public class FAQBasedRAGService {
                 return "**建议：** 我们有相关培训信息!您可以问我「政府有什么技能培训计划？」";
             } else if (containsKeywords(lowerQuery, "钱", "薪水", "收入", "money", "salary", "income")) {
                 return "**建议：** 如果您想了解财政支持，可以问我「有什么补助金或财政援助？」";
+            } else if (containsKeywords(lowerQuery, "专业", "技术", "职业")) {
+                return "**建议：** 您可以问我「有什么技术类工作？」或「专业组2有什么职业？」";
             }
-            return "**提示：** 请尝试问我关于工作、职业发展、AI工具使用或政府补助的问题。";
+            return "**提示：** 请尝试问我关于具体工作、职业发展、AI工具使用或政府补助的问题。";
         } else {
             if (containsKeywords(lowerQuery, "weather", "temperature", "rain", "天气")) {
                 return "**Suggestion:** If you want to know about facilities near workplaces, you can ask me 'How to use the map function?'";
@@ -204,8 +328,10 @@ public class FAQBasedRAGService {
                 return "**Suggestion:** We have training information! You can ask me 'What government skill training programs are available?'";
             } else if (containsKeywords(lowerQuery, "money", "salary", "income", "pay")) {
                 return "**Suggestion:** If you want to know about financial support, ask me 'What grants or financial assistance are available?'";
+            } else if (containsKeywords(lowerQuery, "professional", "technical", "career")) {
+                return "**Suggestion:** You can ask me 'What technical jobs are available?' or 'What careers are in major group 2?'";
             }
-            return "**Tip:** Please try asking me questions about jobs, career development, AI tools, or government grants.";
+            return "**Tip:** Please try asking me questions about specific jobs, career development, AI tools, or government grants.";
         }
     }
 
@@ -247,7 +373,7 @@ public class FAQBasedRAGService {
             }
         }
         
-        // 🔥 修改：排除常见的无意义词汇
+        // 排除常见的无意义词汇
         Set<String> commonWords = Set.of("what", "how", "when", "where", "why", "who", 
                                         "is", "are", "can", "could", "will", "would", 
                                         "the", "a", "an", "and", "or", "but", "in", "on", 
@@ -341,7 +467,7 @@ public class FAQBasedRAGService {
             return """
                 欢迎使用CitaCita职业匹配平台!我可以帮助您:
                 
-                **工作搜索** - 浏览行业工作机会和详细要求
+                **工作搜索** - 浏览MASCO职业分类中的详细工作信息和要求
                 **职业测验** - 通过测验找到适合的工作建议  
                 **AI工具** - 使用简历检查、面试练习等AI功能
                 **支持服务** - 查找托儿所等工作支持设施
@@ -353,7 +479,7 @@ public class FAQBasedRAGService {
             return """
                 Welcome to CitaCita career matching platform! I can help you with:
                 
-                **Job Search** - Browse industry job opportunities and detailed requirements
+                **Job Search** - Browse detailed job information and requirements from MASCO occupation classification
                 **Career Quiz** - Find suitable job suggestions through quizzes
                 **AI Tools** - Use resume checking, interview practice and other AI features
                 **Support Services** - Find childcare and other workplace support facilities
@@ -365,26 +491,25 @@ public class FAQBasedRAGService {
     }
 
     /**
-     * 初始化FAQ+Grants数据库
+     * 初始化FAQ+Grants数据库（保持你原有的所有数据）
      */
     private Map<String, FAQ> initializeFAQDatabase() {
         Map<String, FAQ> faqs = new HashMap<>();
         
-        // ============= 原有FAQ部分 =============
-        
-        // 1. 工作信息类型
+        // 添加一个基本的工作信息FAQ - 你需要添加所有原有的FAQ数据
         faqs.put("job_info", new FAQ(
             "What kind of job information can I find?",
             """
-            Jobs are displayed in three sections:
+            Jobs are displayed using the MASCO (Malaysian Standard Classification of Occupations) 2020 system:
             
-            1. **By Industry** - Explore different industries and understand the opportunities available.
+            1. **By Major Groups** - 9 major occupational groups (1-9)
+            2. **By Sub-Major Groups** - More specific occupational categories  
+            3. **By Minor Groups** - Detailed occupational families
+            4. **Unit Groups** - Specific job titles with comprehensive descriptions
             
-            2. **Jobs in Industry** - See specific roles within your chosen industry.
-            
-            3. **Job Details** - Learn about the requirements, skills, and pathways for each role.
+            Each job includes detailed information about tasks, requirements, skill levels, examples, and multilingual support (English, Chinese, Malay).
             """,
-            Arrays.asList("job", "information", "find", "industry", "工作", "信息", "行业")
+            Arrays.asList("job", "information", "find", "industry", "masco", "occupation", "工作", "信息", "行业", "职业", "分类")
         ));
         
         // 2. 工作测验
@@ -662,19 +787,3 @@ public class FAQBasedRAGService {
         }
     }
 }
-
-/*
- * 新功能测试示例：
- * 
- * ===== 低相关性查询测试 =====
- * 输入: "今天天气怎么样？"
- * 输出: 不好意思，您的问题与我们网站内容关系不大... [引导重新输入]
- * 
- * 输入: "What's the weather like?"  
- * 输出: Sorry, your question doesn't seem directly related... [引导重新输入]
- * 
- * ===== 语言检测测试 =====
- * 输入: "有什么补助金？" → 中文回复
- * 输入: "What grants are available?" → 英文回复
- * 输入: "grants补助金" → 根据字符数比例决定语言
- */

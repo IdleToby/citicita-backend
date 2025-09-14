@@ -1,7 +1,8 @@
 package com.citacita.controller;
 
 import com.citacita.service.AzureStreamService;
-import com.citacita.service.FAQBasedRAGService; 
+// import com.citacita.service.FAQBasedRAGService; 
+import com.citacita.service.EnhancedFAQRAGService;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.web.bind.annotation.*;
@@ -18,10 +19,10 @@ import java.util.Map;
 public class StreamChatController {
 
     private final AzureStreamService azureStreamService;
-    private final FAQBasedRAGService ragService;
+    private final EnhancedFAQRAGService ragService;
 
     public StreamChatController(AzureStreamService azureStreamService, 
-                           FAQBasedRAGService ragService) { 
+                                EnhancedFAQRAGService ragService) { 
     this.azureStreamService = azureStreamService;
     this.ragService = ragService;
 }

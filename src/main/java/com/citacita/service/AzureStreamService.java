@@ -55,11 +55,18 @@ public class AzureStreamService {
                         HttpStatusCode::isError,
                         clientResponse -> clientResponse.bodyToMono(String.class)
                                 .flatMap(errorBody -> {
-                                System.err.println("OpenAI API Error: " + errorBody);
-                                return Mono.error(new RuntimeException("OpenAI API failed: " + errorBody));
+                                        System.err.println("OpenAI API Error: " + errorBody);
+                                        return Mono.error(new RuntimeException("OpenAI API failed: " + errorBody));
                                 })
                         )
-                        .bodyToFlux(String.class);
+                        .bodyToFlux(String.class)
+                        .map(this::cleanAzureResponse); 
+        }
+        // 添加清理Azure响应的方法
+        private String cleanAzureResponse(String response) {
+                return response
+                        .replace("’ ", "'")        // 替换特殊单引号
+                        .replace("’", "'");        // 替换另一种单引号                        
         }
 
     public Mono<Map<String, Object>> transcribeBatch(Mono<FilePart> filePartMono) {
