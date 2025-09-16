@@ -10,9 +10,11 @@ import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Service
@@ -45,29 +47,30 @@ public class AzureStreamService {
     /**
      * 调用 Azure OpenAI Chat
      */
-        public Flux<String> streamChat(Map<String, Object> body) {
-                return openAiClient.post()
-                        .uri("/models/chat/completions?api-version=2024-05-01-preview")
-                        .bodyValue(body)
-                        .accept(MediaType.TEXT_EVENT_STREAM)
-                        .retrieve()
-                        .onStatus(
+    public Flux<String> streamChat(Map<String, Object> body) {
+        return openAiClient.post()
+                .uri("/models/chat/completions?api-version=2024-05-01-preview")
+                .bodyValue(body)
+                .accept(MediaType.TEXT_EVENT_STREAM)
+                .retrieve()
+                .onStatus(
                         HttpStatusCode::isError,
                         clientResponse -> clientResponse.bodyToMono(String.class)
                                 .flatMap(errorBody -> {
-                                        System.err.println("OpenAI API Error: " + errorBody);
-                                        return Mono.error(new RuntimeException("OpenAI API failed: " + errorBody));
+                                    System.err.println("OpenAI API Error: " + errorBody);
+                                    return Mono.error(new RuntimeException("OpenAI API failed: " + errorBody));
                                 })
-                        )
-                        .bodyToFlux(String.class)
-                        .map(this::cleanAzureResponse); 
-        }
-        // 添加清理Azure响应的方法
-        private String cleanAzureResponse(String response) {
-                return response
-                        .replace("’ ", "'")        // 替换特殊单引号
-                        .replace("’", "'");        // 替换另一种单引号                        
-        }
+                )
+                .bodyToFlux(String.class)
+                .map(this::cleanAzureResponse);
+    }
+
+    // 添加清理Azure响应的方法
+    private String cleanAzureResponse(String response) {
+        return response
+                .replace("’ ", "'")        // 替换特殊单引号
+                .replace("’", "'");        // 替换另一种单引号
+    }
 
     public Mono<Map<String, Object>> transcribeBatch(Mono<FilePart> filePartMono) {
         return filePartMono.flatMap(filePart -> {
@@ -93,7 +96,25 @@ public class AzureStreamService {
                                         return Mono.error(new RuntimeException("Request Failed with status: " + clientResponse.statusCode() + " and body: " + errorBody));
                                     })
                     )
-                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {});
+                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
+        });
+    }
+
+    public Mono<Map<String, Object>> resumePolish(Mono<FilePart> filePartMono) {
+        // give a test return
+        return filePartMono.map(filePart -> {
+            // Once the FilePart is available, we create a map with mock data.
+            Map<String, Object> responseMap = new HashMap<>();
+
+            // Add some information to the map for testing purposes.
+            responseMap.put("status", "POLISHED_SUCCESS");
+            responseMap.put("originalFilename", filePart.filename()); // Acknowledge the received file.
+            responseMap.put("timestamp", System.currentTimeMillis());
+            responseMap.put("mockSuggestion", "Consider adding more quantifiable achievements.");
+
+            // The map is returned, and the .map() operator wraps it in a Mono.
+            return responseMap;
         });
     }
 }

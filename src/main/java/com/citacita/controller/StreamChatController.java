@@ -243,4 +243,12 @@ public class StreamChatController {
     public Mono<Map<String, Object>> transcribeBatch(@RequestPart("audio") Mono<FilePart> filePartMono) {
         return azureStreamService.transcribeBatch(filePartMono);
     }
+
+    /**
+     * Resume-Polish
+     */
+    @PostMapping(value = "/resume", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Mono<Map<String, Object>> resumePolish(@RequestPart("resume") Mono<FilePart> filePartMono) {
+        return azureStreamService.resumePolish(filePartMono);
+    }
 }
