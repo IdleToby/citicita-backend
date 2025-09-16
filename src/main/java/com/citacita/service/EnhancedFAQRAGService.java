@@ -21,6 +21,7 @@ public class EnhancedFAQRAGService {
     // 语言检测模式
     private final Pattern chinesePattern = Pattern.compile("[\\u4e00-\\u9fff]+");
     private final Pattern englishPattern = Pattern.compile("[a-zA-Z]+");
+    private final Pattern malayPattern = Pattern.compile("\\b(apa|bagaimana|di mana|kenapa|bila|boleh|tidak|ya|kerja|jawatan|pekerjaan|saya|anda|ini|itu|dengan|untuk|dari|ke|dan|atau)\\b", Pattern.CASE_INSENSITIVE);
 
     public EnhancedFAQRAGService() {
         this.faqDatabase = initializeFAQDatabase();
@@ -33,31 +34,91 @@ public class EnhancedFAQRAGService {
         try {
             String lowerQuery = query.toLowerCase();
             
-            // 检测用户使用的语言
+            // 强制重新检测语言，不依赖任何会话状态
             String detectedLanguage = detectLanguage(query);
+            System.out.println("=== 强制语言检测 ===");
+            System.out.println("查询: " + query);
+            System.out.println("检测到的语言: " + detectedLanguage);
+            System.out.println("========================");
             
-            // 1. 首先检查工作相关查询 - 优先级最高
-            if (isJobRelatedQuery(lowerQuery)) {
-                return processJobQuery(lowerQuery, detectedLanguage);
+            // 1. 首先检查是否询问页面导航 - 强制使用检测到的语言
+            String navigationResponse = getPageNavigation(query, detectedLanguage);
+            if (navigationResponse != null) {
+                System.out.println("返回页面导航，语言: " + detectedLanguage);
+                return Mono.just(addLanguageHeader(navigationResponse, detectedLanguage));
             }
             
-            // 2. 检查FAQ和Grants
+            // 2. 检查工作相关查询 - 强制使用检测到的语言
+            if (isJobRelatedQuery(lowerQuery)) {
+                return processJobQuery(lowerQuery, detectedLanguage)
+                    .map(response -> addLanguageHeader(response, detectedLanguage));
+            }
+            
+            // 3. 检查FAQ和Grants - 强制使用检测到的语言
             List<FAQ> matchedFAQs = findMatchingFAQs(lowerQuery);
             if (!matchedFAQs.isEmpty()) {
-                return Mono.just(formatFAQResponse(matchedFAQs, detectedLanguage));
+                String response = formatFAQResponse(matchedFAQs, detectedLanguage);
+                return Mono.just(addLanguageHeader(response, detectedLanguage));
             }
             
-            // 3. 检查是否为低相关性查询（需要引导用户重新输入）
+            // 4. 检查是否为低相关性查询 - 强制使用检测到的语言
             if (isLowRelevanceQuery(lowerQuery)) {
-                return Mono.just(generateLowRelevanceResponse(lowerQuery, detectedLanguage));
+                String response = generateLowRelevanceResponse(lowerQuery, detectedLanguage);
+                return Mono.just(addLanguageHeader(response, detectedLanguage));
             }
             
-            // 4. 如果没有直接匹配但不是完全无关，返回相关的通用信息
-            return Mono.just(getRelatedGuidance(lowerQuery, detectedLanguage));
+            // 5. 返回相关指导信息 - 强制使用检测到的语言
+            String response = getRelatedGuidance(lowerQuery, detectedLanguage);
+            return Mono.just(addLanguageHeader(response, detectedLanguage));
             
         } catch (Exception e) {
             System.err.println("Enhanced FAQ RAG检索错误: " + e.getMessage());
-            return Mono.just(getDefaultGuidance("chinese")); // 默认中文
+            // 即使在错误情况下也要重新检测语言
+            String detectedLanguage = detectLanguage(query);
+            String response = getDefaultGuidance(detectedLanguage);
+            return Mono.just(addLanguageHeader(response, detectedLanguage));
+        }
+    }
+
+    /**
+     * 添加语言标识头（用于调试和强制语言）
+     */
+    private String addLanguageHeader(String response, String detectedLanguage) {
+        // 在开发阶段可以添加语言标识，生产环境可以移除
+        String languageHeader = "";
+        
+        // 可选：添加不可见的语言标记用于调试
+        switch (detectedLanguage) {
+            case "chinese":
+                languageHeader = "<!-- LANG: 中文 -->\n";
+                break;
+            case "malay":
+                languageHeader = "<!-- LANG: Malay -->\n";
+                break;
+            default:
+                languageHeader = "<!-- LANG: English -->\n";
+                break;
+        }
+        
+        return languageHeader + response;
+    }
+
+    /**
+     * 更新映射数据库语言代码的方法
+     */
+    private String mapToDbLanguageCode(String language) {
+        if (language == null) return "en";
+        
+        switch (language.toLowerCase()) {
+            case "chinese":
+            case "zh-cn":
+            case "zh":
+                return "zh-CN";
+            case "malay":
+            case "ms":
+                return "ms";
+            default:
+                return "en";
         }
     }
 
@@ -124,75 +185,146 @@ public class EnhancedFAQRAGService {
     }
 
     /**
-     * 为找不到工作时提供指导
+     * 为找不到工作时提供指导（修复版本 - 支持三种语言）
      */
     private String getJobSearchGuidance(String query, String language) {
-        if ("chinese".equals(language)) {
-            return String.format("""
-                很抱歉，我没有找到与"%s"直接匹配的工作信息。
-                
-                **建议您可以尝试：**
-                • 使用更具体的职位名称，如"软件开发员"、"会计师"、"护士"
-                • 搜索工作代码，如"2111"、"2421"
-                • 询问特定行业的工作，如"IT行业有什么工作？"
-                • 使用英文或马来文搜索，如"software developer"
-                
-                **或者您可以问我：**
-                • "有什么IT相关的工作？"
-                • "管理类工作有哪些？"
-                • "什么工作适合我？"（可以先做我们的职业测验）
-                • "专业组1有什么工作？"（按MASCO分类）
-                
-                我还可以帮您了解政府补助、AI工具使用等其他信息！
-                """, query);
-        } else {
-            return String.format("""
-                Sorry, I couldn't find job information directly matching "%s".
-                
-                **You can try:**
-                • Use specific job titles like "software developer", "accountant", "nurse"
-                • Search by job codes like "2111", "2421"
-                • Ask about specific industries like "What IT jobs are available?"
-                • Try searching in Chinese or Malay
-                
-                **Or you can ask me:**
-                • "What IT-related jobs are there?"
-                • "What management jobs are available?"
-                • "What jobs are suitable for me?" (try our career quiz first)
-                • "What jobs are in major group 1?" (by MASCO classification)
-                
-                I can also help you learn about government grants, AI tools, and other information!
-                """, query);
+        switch (language) {
+            case "chinese":
+                return String.format("""
+                    很抱歉，我没有找到与"%s"直接匹配的工作信息。
+                    
+                    **建议您可以尝试：**
+                    • 使用更具体的职位名称，如"软件开发人员"、"会计师"、"护士"
+                    • 搜索工作代码，如"2111"、"2421"
+                    • 询问特定行业的工作，如"IT行业有什么工作？"
+                    • 使用英文或马来文搜索，如"software developer"
+                    
+                    **或者您可以问我：**
+                    • "有什么IT相关的工作？"
+                    • "管理类工作有哪些？"
+                    • "什么工作适合我？"（可以先做我们的职业测验）
+                    • "专业组1有什么工作？"（按MASCO分类）
+                    
+                    我还可以帮您了解政府补助、AI工具使用等其他信息！
+                    """, query);
+                    
+            case "malay":
+                return String.format("""
+                    Maaf, saya tidak dapat mencari maklumat kerja yang sepadan dengan "%s".
+                    
+                    **Anda boleh cuba:**
+                    • Gunakan nama jawatan yang lebih spesifik seperti "software developer", "akauntan", "jururawat"
+                    • Cari menggunakan kod kerja seperti "2111", "2421"
+                    • Tanya tentang industri tertentu seperti "Apakah kerja IT yang tersedia?"
+                    • Cuba cari dalam bahasa Inggeris atau Cina
+                    
+                    **Atau anda boleh tanya saya:**
+                    • "Apakah kerja berkaitan IT yang ada?"
+                    • "Apakah kerja pengurusan yang tersedia?"
+                    • "Apakah kerja yang sesuai untuk saya?" (cuba kuiz kerjaya kami dahulu)
+                    • "Apakah kerja dalam kumpulan utama 1?" (mengikut klasifikasi MASCO)
+                    
+                    Saya juga boleh membantu anda mengetahui tentang geran kerajaan, penggunaan alat AI dan maklumat lain!
+                    """, query);
+                    
+            default: // english
+                return String.format("""
+                    Sorry, I couldn't find job information directly matching "%s".
+                    
+                    **You can try:**
+                    • Use specific job titles like "software developer", "accountant", "nurse"
+                    • Search by job codes like "2111", "2421"
+                    • Ask about specific industries like "What IT jobs are available?"
+                    • Try searching in Chinese or Malay
+                    
+                    **Or you can ask me:**
+                    • "What IT-related jobs are there?"
+                    • "What management jobs are available?"
+                    • "What jobs are suitable for me?" (try our job quiz first)
+                    • "What jobs are in major group 1?" (by MASCO classification)
+                    
+                    I can also help you learn about government grants, AI tools, and other information!
+                    """, query);
         }
     }
 
-    /**
-     * 检测用户使用的语言
+    /*
+     * 三语言强制检测（英文、中文、马来语）
      */
     private String detectLanguage(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return "english"; // 默认英文
+        }
+        
+        String cleanQuery = query.trim().toLowerCase();
+        
+        // 1. 优先检查明显的语言标识词
+        
+        //中文
+        String[] chineseIndicators = {
+            "什么", "怎么", "如何", "哪里", "为什么", "是否", "能否", "可以", "谢谢", "你好", 
+            "工作", "职业", "政府", "补助", "帮助", "页面", "链接", "在哪", "怎样", "如何",
+            "的", "了", "和", "我", "你", "他", "她", "我们", "你们", "他们"
+        };
+        for (String indicator : chineseIndicators) {
+            if (cleanQuery.contains(indicator)) {
+                System.out.println("检测到中文标识词: " + indicator);
+                return "chinese";
+            }
+        }
+        
+        // 马来语标识词（扩展列表）
+        String[] malayIndicators = {
+            "apa", "bagaimana", "di mana", "kenapa", "bila", "boleh", "tidak", "kerja", "jawatan", 
+            "pekerjaan", "bantuan", "kerajaan", "saya", "anda", "kami", "mereka", "dengan", "untuk",
+            "halaman", "pautan", "mana", "macam mana"
+        };
+        for (String indicator : malayIndicators) {
+            if (cleanQuery.contains(indicator)) {
+                System.out.println("检测到马来语标识词: " + indicator);
+                return "malay";
+            }
+        }
+        
+        // 英文标识词（扩展列表）
+        String[] englishIndicators = {
+            "what", "how", "where", "why", "when", "can", "could", "should", "would", "hello", "hi", 
+            "thank", "job", "work", "government", "grant", "page", "link", "access", "find", "show",
+            "do", "does", "is", "are", "the", "and", "to", "of", "in", "for", "with"
+        };
+        for (String indicator : englishIndicators) {
+            if (cleanQuery.contains(" " + indicator + " ") || cleanQuery.startsWith(indicator + " ") || 
+                cleanQuery.endsWith(" " + indicator) || cleanQuery.equals(indicator)) {
+                System.out.println("检测到英文标识词: " + indicator);
+                return "english";
+            }
+        }
+        
+        // 2. 字符和模式检测
         int chineseChars = 0;
         int englishChars = 0;
+        boolean hasMalayWords = malayPattern.matcher(cleanQuery).find();
         
-        // 统计中文字符数
         if (chinesePattern.matcher(query).find()) {
             chineseChars = query.replaceAll("[^\\u4e00-\\u9fff]", "").length();
         }
         
-        // 统计英文字符数
         if (englishPattern.matcher(query).find()) {
             englishChars = query.replaceAll("[^a-zA-Z]", "").length();
         }
         
-        // 根据字符数比例决定语言
-        if (chineseChars > englishChars) {
+        // 3. 决策逻辑（优先级：马来语 > 中文 > 英文）
+        if (hasMalayWords) {
+            return "malay";
+        } else if (chineseChars > 0) {
             return "chinese";
-        } else if (englishChars > chineseChars) {
+        } else if (englishChars > 0) {
             return "english";
         } else {
-            // 如果相等或都为0，检查是否包含中文
-            return chinesePattern.matcher(query).find() ? "chinese" : "english";
+            return "english"; // 默认英文
         }
     }
+    
 
     /**
      * 检查是否为低相关性查询
@@ -213,10 +345,13 @@ public class EnhancedFAQRAGService {
      * 生成低相关性回复（引导用户重新输入）
      */
     private String generateLowRelevanceResponse(String query, String language) {
-        if ("chinese".equals(language)) {
-            return generateChineseLowRelevanceResponse(query);
-        } else {
-            return generateEnglishLowRelevanceResponse(query);
+        switch (language) {
+            case "chinese":
+                return generateChineseLowRelevanceResponse(query);
+            case "malay":
+                return generateMalayLowRelevanceResponse(query);
+            default:
+                return generateEnglishLowRelevanceResponse(query);
         }
     }
 
@@ -298,6 +433,45 @@ public class EnhancedFAQRAGService {
             Please try asking me questions related to the above topics, and I'll be happy to help in detail!
             """, suggestion);
     }
+
+    /**
+     * 马来语低相关性回复
+     */
+    private String generateMalayLowRelevanceResponse(String query) {
+        String suggestion = getSuggestionForQuery(query, "malay");
+        
+        return String.format("""
+            Hai! Kami sangat gembira anda menghubungi kami — soalan dan idea anda sangat berharga.
+            
+            Saya direka khusus untuk membantu platform CitaCita career matching, dan saya boleh membantu anda dengan:
+            
+            **Pekerjaan & Kerjaya:**
+            • "Apakah kerja yang sesuai untuk saya?"
+            • "Apakah yang dilakukan oleh software developer?"
+            • "Apakah kod kerja 2111?"
+            • "Apakah kerja dalam kumpulan utama 1?"
+            • "Bagaimana menggunakan kuiz pekerjaan?"
+            • "Bagaimana memeriksa keperluan kerja?"
+            
+            **Alat AI:**
+            • "Bagaimana AI Resume Checker berfungsi?"
+            • "Apakah AI Mock Interview?"
+            • "Apakah yang chatbot boleh bantu saya?"
+            
+            **Geran & Sokongan Kerajaan:**
+            • "Apakah geran yang tersedia untuk wanita yang kembali bekerja?"
+            • "Apakah program sokongan keusahawanan kerajaan yang wujud?"
+            • "Apakah dasar pelepasan cukai yang tersedia?"
+            
+            **Perkhidmatan Sokongan:**
+            • "Bagaimana menggunakan fungsi peta?"
+            • "Di manakah saya boleh mencari pusat jagaan kanak-kanak?"
+            
+            %s
+            
+            Sila cuba tanya saya soalan berkaitan topik di atas, dan saya akan gembira membantu secara terperinci!
+            """, suggestion);
+        }
     
 
     /**
@@ -306,32 +480,30 @@ public class EnhancedFAQRAGService {
     private String getSuggestionForQuery(String query, String language) {
         String lowerQuery = query.toLowerCase();
         
-        if ("chinese".equals(language)) {
-            if (containsKeywords(lowerQuery, "天气", "weather", "气温", "下雨")) {
-                return "**建议：** 如果您想了解工作地点附近的设施，可以问我「地图功能怎么用？」";
-            } else if (containsKeywords(lowerQuery, "吃饭", "餐厅", "食物", "restaurant", "food")) {
-                return "**建议：** 如果您关心工作地点的生活设施，可以问我「怎么查看工作地点周边的支持服务？」";
-            } else if (containsKeywords(lowerQuery, "学习", "课程", "培训", "education", "course", "training")) {
-                return "**建议：** 我们有相关培训信息!您可以问我「政府有什么技能培训计划？」";
-            } else if (containsKeywords(lowerQuery, "钱", "薪水", "收入", "money", "salary", "income")) {
-                return "**建议：** 如果您想了解财政支持，可以问我「有什么补助金或财政援助？」";
-            } else if (containsKeywords(lowerQuery, "专业", "技术", "职业")) {
-                return "**建议：** 您可以问我「有什么技术类工作？」或「专业组2有什么职业？」";
-            }
-            return "**提示：** 请尝试问我关于具体工作、职业发展、AI工具使用或政府补助的问题。";
-        } else {
-            if (containsKeywords(lowerQuery, "weather", "temperature", "rain", "天气")) {
-                return "**Suggestion:** If you want to know about facilities near workplaces, you can ask me 'How to use the map function?'";
-            } else if (containsKeywords(lowerQuery, "restaurant", "food", "dining", "eat")) {
-                return "**Suggestion:** If you're concerned about living facilities near work locations, ask me 'How to check support services around workplaces?'";
-            } else if (containsKeywords(lowerQuery, "study", "course", "training", "education", "learn")) {
-                return "**Suggestion:** We have training information! You can ask me 'What government skill training programs are available?'";
-            } else if (containsKeywords(lowerQuery, "money", "salary", "income", "pay")) {
-                return "**Suggestion:** If you want to know about financial support, ask me 'What grants or financial assistance are available?'";
-            } else if (containsKeywords(lowerQuery, "professional", "technical", "career")) {
-                return "**Suggestion:** You can ask me 'What technical jobs are available?' or 'What careers are in major group 2?'";
-            }
-            return "**Tip:** Please try asking me questions about specific jobs, career development, AI tools, or government grants.";
+        switch (language) {
+            case "chinese":
+                if (containsKeywords(lowerQuery, "天气", "weather", "cuaca")) {
+                    return "**建议：** 如果您想了解工作地点附近的设施，可以问我「地图功能怎么用？」";
+                } else if (containsKeywords(lowerQuery, "学习", "课程", "培训")) {
+                    return "**建议：** 我们有相关培训信息！您可以问我「政府有什么技能培训计划？」";
+                }
+                return "**提示：** 请尝试问我关于具体工作、职业发展、AI工具使用或政府补助的问题。";
+                
+            case "malay":
+                if (containsKeywords(lowerQuery, "cuaca", "weather", "hujan")) {
+                    return "**Cadangan:** Jika anda ingin tahu tentang kemudahan berhampiran tempat kerja, tanya saya 'Bagaimana menggunakan fungsi peta?'";
+                } else if (containsKeywords(lowerQuery, "belajar", "kursus", "latihan")) {
+                    return "**Cadangan:** Kami ada maklumat latihan! Tanya saya 'Apakah program latihan kemahiran kerajaan yang tersedia?'";
+                }
+                return "**Tip:** Sila cuba tanya saya soalan tentang kerja tertentu, pembangunan kerjaya, alat AI, atau geran kerajaan.";
+                
+            default: // english
+                if (containsKeywords(lowerQuery, "weather", "temperature", "rain")) {
+                    return "**Suggestion:** If you want to know about facilities near workplaces, ask me 'How to use the map function?'";
+                } else if (containsKeywords(lowerQuery, "study", "course", "training")) {
+                    return "**Suggestion:** We have training information! Ask me 'What government skill training programs are available?'";
+                }
+                return "**Tip:** Please try asking me questions about specific jobs, career development, AI tools, or government grants.";
         }
     }
 
@@ -390,15 +562,21 @@ public class EnhancedFAQRAGService {
     }
 
     /**
-     * 格式化FAQ回复（支持多语言）
+     * 格式化FAQ回复（支持三种语言）
      */
     private String formatFAQResponse(List<FAQ> faqs, String language) {
         StringBuilder response = new StringBuilder();
         
-        if ("chinese".equals(language)) {
-            response.append("根据CitaCita平台的信息,以下资源可能对您有帮助:\n\n");
-        } else {
-            response.append("Based on CitaCita platform information, the following resources may help you:\n\n");
+        switch (language) {
+            case "chinese":
+                response.append("根据CitaCita平台的信息,以下资源可能对您有帮助:\n\n");
+                break;
+            case "malay":
+                response.append("Berdasarkan maklumat platform CitaCita, sumber berikut mungkin membantu anda:\n\n");
+                break;
+            default: // english
+                response.append("Based on CitaCita platform information, the following resources may help you:\n\n");
+                break;
         }
         
         for (int i = 0; i < faqs.size(); i++) {
@@ -413,46 +591,6 @@ public class EnhancedFAQRAGService {
         return response.toString();
     }
 
-    /**
-     * 获取相关指导信息（支持多语言）
-     */
-    private String getRelatedGuidance(String query, String language) {
-        // 检查补助金相关关键词
-        if (containsKeywords(query, "grant", "financial", "assistance", "funding", "support", "subsidy", 
-                           "补助", "资助", "财政", "津贴", "支持", "补贴", "税务", "减免")) {
-            if ("chinese".equals(language)) {
-                return """
-                    马来西亚为重返职场的女性提供多种财政支持和补助计划：
-                    
-                    **主要计划包括：**
-                    • **Career Comeback Programme** - TalentCorp职业回归计划,提供12个月个人所得税减免
-                    • **雇主税务激励** - 雇主聘用女性回归者可获得50%额外税务扣除
-                    • **灵活工作安排支持** - FWA实施支持和税务优惠
-                    • **MYFutureJobs女性倡议** - 重新技能培训和就业安置
-                    • **创业融资计划** - DanaNITA、WinBiz等女性企业家专项融资
-                    
-                    请告诉我您具体需要哪种类型的支持，我可以提供更详细的信息。
-                    """;
-            } else {
-                return """
-                    Malaysia provides various financial support and grant programs for women returning to work:
-                    
-                    **Main programs include:**
-                    • **Career Comeback Programme** - TalentCorp career return program with 12-month personal income tax exemption
-                    • **Employer Tax Incentives** - 50% additional tax deduction for employers hiring women returnees
-                    • **Flexible Work Arrangement Support** - FWA implementation support and tax benefits
-                    • **MYFutureJobs Women Initiative** - Re-skilling training and job placement
-                    • **Entrepreneurship Financing** - DanaNITA, WinBiz and other women entrepreneur financing schemes
-                    
-                    Please tell me what specific type of support you need, and I can provide more detailed information.
-                    """;
-            }
-        }
-        
-        // 其他类别的指导信息也按语言返回...
-        return getDefaultGuidance(language);
-    }
-
     private boolean containsKeywords(String query, String... keywords) {
         for (String keyword : keywords) {
             if (query.contains(keyword.toLowerCase())) {
@@ -462,34 +600,539 @@ public class EnhancedFAQRAGService {
         return false;
     }
 
+    /**
+     * 获取相关指导信息（支持三种语言）- 修复版
+     */
+    private String getRelatedGuidance(String query, String language) {
+        // 检查补助金相关关键词 - 分组检查
+        boolean isGrantRelated = containsKeywords(query, "grant", "financial", "assistance", "funding", "support", "subsidy") ||
+                            containsKeywords(query, "补助", "资助", "财政", "津贴", "支持", "补贴", "税务", "减免") ||
+                            containsKeywords(query, "geran", "kewangan", "bantuan", "pembiayaan", "sokongan", "subsidi", "cukai", "pelepasan");
+        
+        if (isGrantRelated) {
+            switch (language) {
+                case "chinese":
+                    return """
+                        马来西亚为重返职场的女性提供多种财政支持和补助计划：
+                        
+                        **主要计划包括：**
+                        • **Career Comeback Programme** - TalentCorp职业回归计划，提供12个月个人所得税减免
+                        • **雇主税务激励** - 雇主聘用女性回归者可获得50%额外税务扣除
+                        • **灵活工作安排支持** - FWA实施支持和税务优惠
+                        • **MYFutureJobs女性倡议** - 重新技能培训和就业安置
+                        • **创业融资计划** - DanaNITA、WinBiz等女性企业家专项融资
+                        
+                        请告诉我您具体需要哪种类型的支持，我可以提供更详细的信息。
+                        """;
+                        
+                case "malay":
+                    return """
+                        Malaysia menyediakan pelbagai sokongan kewangan dan program geran untuk wanita yang kembali bekerja:
+                        
+                        **Program utama termasuk:**
+                        • **Career Comeback Programme** - Program kembali bekerja TalentCorp dengan pengecualian cukai pendapatan peribadi 12 bulan
+                        • **Insentif Cukai Majikan** - 50% potongan cukai tambahan untuk majikan yang mengambil wanita yang kembali bekerja
+                        • **Sokongan Pengaturan Kerja Fleksibel** - Sokongan pelaksanaan FWA dan faedah cukai
+                        • **Inisiatif Wanita MYFutureJobs** - Latihan kemahiran semula dan penempatan kerja
+                        • **Pembiayaan Keusahawanan** - DanaNITA, WinBiz dan skim pembiayaan khusus usahawan wanita
+                        
+                        Sila beritahu saya jenis sokongan khusus yang anda perlukan, dan saya boleh memberikan maklumat yang lebih terperinci.
+                        """;
+                        
+                default: // english
+                    return """
+                        Malaysia provides various financial support and grant programs for women returning to work:
+                        
+                        **Main programs include:**
+                        • **Career Comeback Programme** - TalentCorp career return program with 12-month personal income tax exemption
+                        • **Employer Tax Incentives** - 50% additional tax deduction for employers hiring women returnees
+                        • **Flexible Work Arrangement Support** - FWA implementation support and tax benefits
+                        • **MYFutureJobs Women Initiative** - Re-skilling training and job placement
+                        • **Entrepreneurship Financing** - DanaNITA, WinBiz and other women entrepreneur financing schemes
+                        
+                        Please tell me what specific type of support you need, and I can provide more detailed information.
+                        """;
+            }
+        }
+        
+        // 检查AI工具相关关键词 - 分组检查
+        boolean isAIRelated = containsKeywords(query, "ai", "artificial", "intelligence", "resume", "interview", "chatbot") ||
+                            containsKeywords(query, "智能", "人工", "简历", "面试", "聊天机器人") ||
+                            containsKeywords(query, "pintar", "buatan", "resume", "temuduga", "chatbot");
+        
+        if (isAIRelated) {
+            switch (language) {
+                case "chinese":
+                    return """
+                        CitaCita平台提供多种AI工具来帮助您的职业发展：
+                        
+                        **AI工具包括：**
+                        • **AI简历检查器** - 分析和改进您的简历
+                        • **AI模拟面试** - 练习面试技巧和获得反馈
+                        • **AI聊天机器人** - 24/7职业指导和网站导航
+                        
+                        这些工具旨在提高您的就业竞争力和面试信心。请告诉我您想了解哪个AI工具的详细信息！
+                        """;
+                        
+                case "malay":
+                    return """
+                        Platform CitaCita menyediakan pelbagai alat AI untuk membantu pembangunan kerjaya anda:
+                        
+                        **Alat AI termasuk:**
+                        • **Pemeriksa Resume AI** - Menganalisis dan menambah baik resume anda
+                        • **Temuduga Simulasi AI** - Berlatih kemahiran temuduga dan mendapat maklum balas
+                        • **Chatbot AI** - Bimbingan kerjaya 24/7 dan navigasi laman web
+                        
+                        Alat-alat ini bertujuan untuk meningkatkan daya saing pekerjaan dan keyakinan temuduga anda. Sila beritahu saya alat AI mana yang anda ingin ketahui maklumat terperincinya!
+                        """;
+                        
+                default: // english
+                    return """
+                        CitaCita platform provides various AI tools to help with your career development:
+                        
+                        **AI Tools include:**
+                        • **AI Resume Checker** - Analyze and improve your resume
+                        • **AI Mock Interview** - Practice interview skills and get feedback
+                        • **AI Chatbot** - 24/7 career guidance and website navigation
+                        
+                        These tools are designed to enhance your employability and interview confidence. Please let me know which AI tool you'd like detailed information about!
+                        """;
+            }
+        }
+        
+        // 默认返回通用指导
+        return getDefaultGuidance(language);
+    }
+
+    /**
+     * 三语言默认指导
+     */
     private String getDefaultGuidance(String language) {
-        if ("chinese".equals(language)) {
-            return """
-                欢迎使用CitaCita职业匹配平台!我可以帮助您:
-                
-                **工作搜索** - 浏览MASCO职业分类中的详细工作信息和要求
-                **职业测验** - 通过测验找到适合的工作建议  
-                **AI工具** - 使用简历检查、面试练习等AI功能
-                **支持服务** - 查找托儿所等工作支持设施
-                **财政支持** - 了解政府补助金和财政援助计划
-                
-                请告诉我您具体想了解什么，我会为您提供更详细的信息!
-                """;
-        } else {
-            return """
-                Welcome to CitaCita career matching platform! I can help you with:
-                
-                **Job Search** - Browse detailed job information and requirements from MASCO occupation classification
-                **Career Quiz** - Find suitable job suggestions through quizzes
-                **AI Tools** - Use resume checking, interview practice and other AI features
-                **Support Services** - Find childcare and other workplace support facilities
-                **Financial Support** - Learn about government grants and financial assistance programs
-                
-                Please tell me what you'd like to know more about, and I'll provide detailed information!
-                """;
+        switch (language) {
+            case "chinese":
+                return """
+                    欢迎使用CitaCita职业匹配平台!我可以帮助您:
+                    
+                    **工作搜索** - 浏览MASCO职业分类中的详细工作信息和要求
+                    **职业测验** - 通过测验找到适合的工作建议  
+                    **AI工具** - 使用简历检查、面试练习等AI功能
+                    **支持服务** - 查找托儿所等工作支持设施
+                    **财政支持** - 了解政府补助金和财政援助计划
+                    
+                    请告诉我您具体想了解什么，我会为您提供更详细的信息!
+                    """;
+                    
+            case "malay":
+                return """
+                    Selamat datang ke platform padanan kerjaya CitaCita! Saya boleh membantu anda dengan:
+                    
+                    **Carian Kerja** - Lihat maklumat kerja terperinci dan keperluan dari klasifikasi pekerjaan MASCO
+                    **Kuiz Kerjaya** - Dapatkan cadangan kerja yang sesuai melalui kuiz
+                    **Alat AI** - Gunakan semakan resume, latihan temuduga dan ciri AI lain
+                    **Perkhidmatan Sokongan** - Cari jagaan kanak-kanak dan kemudahan sokongan tempat kerja lain
+                    **Sokongan Kewangan** - Ketahui tentang geran kerajaan dan program bantuan kewangan
+                    
+                    Sila beritahu saya apa yang anda ingin ketahui lebih lanjut, dan saya akan memberikan maklumat terperinci!
+                    """;
+                    
+            default: // english
+                return """
+                    Welcome to CitaCita career matching platform! I can help you with:
+                    
+                    **Job Search** - Browse detailed job information and requirements from MASCO occupation classification
+                    **Job Quiz** - Find suitable job suggestions through quizzes
+                    **AI Tools** - Use resume checking, interview practice and other AI features
+                    **Support Services** - Find childcare and other workplace support facilities
+                    **Financial Support** - Learn about government grants and financial assistance programs
+                    
+                    Please tell me what you'd like to know more about, and I'll provide detailed information!
+                    """;
+            }
+        }
+    
+    /**
+     * 根据查询内容提供相应的页面链接指导
+     */
+    private String getPageNavigation(String query, String language) {
+        String lowerQuery = query.toLowerCase();
+        
+        // 检查是否询问主页
+        if (containsKeywords(lowerQuery, "home", "homepage", "main page", "首页", "主页", "laman utama", "homepage")) {
+            return getNavigationResponse("home", language);
+        }
+        
+        // 检查是否询问工作/职业相关页面
+        if (containsKeywords(lowerQuery, "jobs", "work", "career", "industry", "工作", "职业", "行业", "kerja", "kerjaya", "industri")) {
+            return getNavigationResponse("jobs", language);
+        }
+        
+        // 检查是否询问测验
+        if (containsKeywords(lowerQuery, "quiz", "test", "assessment", "测验", "测试", "评估", "kuiz", "ujian", "penilaian")) {
+            return getNavigationResponse("quiz", language);
+        }
+        
+        // 检查是否询问地图功能
+        if (containsKeywords(lowerQuery, "map", "location", "childcare", "nursery", "地图", "位置", "托儿所", "幼儿园", "peta", "lokasi", "jagaan kanak")) {
+            return getNavigationResponse("map", language);
+        }
+        
+        // 检查是否询问政府补助
+        if (containsKeywords(lowerQuery, "grants", "funding", "financial support", "补助", "资助", "财政支持", "geran", "pembiayaan", "sokongan kewangan")) {
+            return getNavigationResponse("grants", language);
+        }
+        
+        // 检查是否询问FAQ
+        if (containsKeywords(lowerQuery, "faq", "questions", "help", "support", "常见问题", "帮助", "支持", "soalan lazim", "bantuan", "sokongan")) {
+            return getNavigationResponse("faq", language);
+        }
+        
+        // 检查是否询问AI工具
+        if (containsKeywords(lowerQuery, "ai", "artificial intelligence", "resume checker", "mock interview", "chatbot", 
+                        "智能", "人工智能", "简历检查", "模拟面试", "聊天机器人", 
+                        "pintar buatan", "pemeriksa resume", "temuduga simulasi")) {
+            return getNavigationResponse("ai", language);
+        }
+        
+        return null; // 没有找到特定页面相关的查询
+    }
+
+    /**
+     * 生成导航响应
+     */
+    private String getNavigationResponse(String pageType, String language) {
+        switch (pageType) {
+            case "home":
+                return getHomeNavigation(language);
+            case "jobs":
+                return getJobsNavigation(language);
+            case "quiz":
+                return getQuizNavigation(language);
+            case "map":
+                return getMapNavigation(language);
+            case "grants":
+                return getGrantsNavigation(language);
+            case "faq":
+                return getFAQNavigation(language);
+            case "ai":
+                return getAINavigation(language);
+            default:
+                return null;
         }
     }
 
+    /**
+     * 主页导航
+     */
+    private String getHomeNavigation(String language) {
+        switch (language) {
+            case "chinese":
+                return """
+                    您可以访问我们的主页了解CitaCita平台的全部功能：
+                    
+                    🏠 **主页链接：** https://citacita.work/
+                    
+                    在主页上，您可以快速访问所有功能模块，包括工作搜索、职业测验、AI工具、政府补助信息等。
+                    """;
+                    
+            case "malay":
+                return """
+                    Anda boleh melawat laman utama kami untuk mengetahui semua fungsi platform CitaCita:
+                    
+                    🏠 **Pautan Laman Utama:** https://citacita.work/
+                    
+                    Di laman utama, anda boleh mengakses semua modul fungsi dengan pantas, termasuk carian kerja, kuiz kerjaya, alat AI, maklumat geran kerajaan dan lain-lain.
+                    """;
+                    
+            default: // english
+                return """
+                    You can visit our homepage to explore all CitaCita platform features:
+                    
+                    🏠 **Homepage Link:** https://citacita.work/
+                    
+                    On the homepage, you can quickly access all functional modules, including job search, job quiz, AI tools, government grants information, and more.
+                    """;
+        }
+    }
+
+    /**
+     * 工作页面导航
+     */
+    private String getJobsNavigation(String language) {
+        switch (language) {
+            case "chinese":
+                return """
+                    您可以在我们的工作页面探索各种职业机会：
+                    
+                    💼 **工作页面链接：** https://citacita.work/jobs
+                    
+                    在工作页面上，您可以：
+                    • 浏览十个MASCO主要行业分类的工作信息
+                    • 查看详细的职位描述和要求
+                    • 使用职业测验功能（位于页面左下角）
+                    """;
+                    
+            case "malay":
+                return """
+                    Anda boleh meneroka pelbagai peluang kerjaya di laman kerja kami:
+                    
+                    💼 **Pautan Laman Kerja:** https://citacita.work/jobs
+                    
+                    Di laman kerja, anda boleh:
+                    • Lihat maklumat kerja dari sepuluh klasifikasi industri utama MASCO
+                    • Lihat penerangan jawatan dan keperluan yang terperinci
+                    • Gunakan fungsi kuiz kerjaya (terletak di sudut kiri bawah halaman)
+                    """;
+                    
+            default: // english
+                return """
+                    You can explore various career opportunities on our jobs page:
+                    
+                    💼 **Jobs Page Link:** https://citacita.work/jobs
+                    
+                    On the jobs page, you can:
+                    • Browse job information from ten MASCO major industry classifications
+                    • View detailed job descriptions and requirements
+                    • Use the job quiz feature (located in the bottom left corner of the page)
+                    """;
+        }
+    }
+
+    /**
+     * 测验导航
+     */
+    private String getQuizNavigation(String language) {
+        switch (language) {
+            case "chinese":
+                return """
+                    我们的职业测验可以帮助您找到合适的工作建议：
+                    
+                    📝 **职业测验位置：** https://citacita.work/jobs
+                    
+                    **如何使用测验：**
+                    1. 访问工作页面
+                    2. 在页面左下角找到测验按钮
+                    3. 点击开始测验，根据您的兴趣和技能回答问题
+                    4. 获得个性化的工作建议
+                    """;
+                    
+            case "malay":
+                return """
+                    Kuiz kerjaya kami boleh membantu anda mencari cadangan kerja yang sesuai:
+                    
+                    📝 **Lokasi Kuiz Kerjaya:** https://citacita.work/jobs
+                    
+                    **Cara menggunakan kuiz:**
+                    1. Lawati laman kerja
+                    2. Cari butang kuiz di sudut kiri bawah halaman
+                    3. Klik untuk memulakan kuiz, jawab soalan berdasarkan minat dan kemahiran anda
+                    4. Dapatkan cadangan kerja yang dipersonalisasi
+                    """;
+                    
+            default: // english
+                return """
+                    Our job quiz can help you find suitable job recommendations:
+                    
+                    📝 **Job Quiz Location:** https://citacita.work/jobs
+                    
+                    **How to use the quiz:**
+                    1. Visit the jobs page
+                    2. Find the quiz button in the bottom left corner of the page
+                    3. Click to start the quiz and answer questions based on your interests and skills
+                    4. Get personalized job recommendations
+                    """;
+        }
+    }
+
+    /**
+     * 地图导航
+     */
+    private String getMapNavigation(String language) {
+        switch (language) {
+            case "chinese":
+                return """
+                    我们的地图功能可以帮助您找到工作地点附近的支持服务：
+                    
+                    🗺️ **地图页面链接：** https://citacita.work/map
+                    
+                    在地图上，您可以找到：
+                    • 托儿所和幼儿园位置
+                    • 其他工作支持设施
+                    • 便民服务场所
+                    
+                    注意：地图搜索结果无法保存，但您可以随时重新搜索。
+                    """;
+                    
+            case "malay":
+                return """
+                    Fungsi peta kami boleh membantu anda mencari perkhidmatan sokongan berhampiran tempat kerja:
+                    
+                    🗺️ **Pautan Laman Peta:** https://citacita.work/map
+                    
+                    Di peta, anda boleh mencari:
+                    • Lokasi pusat jagaan kanak-kanak dan tadika
+                    • Kemudahan sokongan kerja lain
+                    • Tempat perkhidmatan awam
+                    
+                    Nota: Hasil carian peta tidak boleh disimpan, tetapi anda boleh mencari semula pada bila-bila masa.
+                    """;
+                    
+            default: // english
+                return """
+                    Our map feature can help you find support services near workplaces:
+                    
+                    🗺️ **Map Page Link:** https://citacita.work/map
+                    
+                    On the map, you can find:
+                    • Childcare centers and kindergarten locations
+                    • Other workplace support facilities
+                    • Public service locations
+                    
+                    Note: Map search results cannot be saved, but you can search again anytime.
+                    """;
+        }
+    }
+
+    /**
+     * 补助页面导航
+     */
+    private String getGrantsNavigation(String language) {
+        switch (language) {
+            case "chinese":
+                return """
+                    了解马来西亚政府为女性提供的各种补助和支持计划：
+                    
+                    💰 **政府补助页面链接：** https://citacita.work/grants
+                    
+                    在补助页面上，您可以了解：
+                    • 重返职场女性的税务减免计划
+                    • 创业融资和商业支持
+                    • 技能培训和就业安置服务
+                    • 灵活工作安排支持
+                    """;
+                    
+            case "malay":
+                return """
+                    Ketahui pelbagai program geran dan sokongan yang disediakan kerajaan Malaysia untuk wanita:
+                    
+                    💰 **Pautan Laman Geran:** https://citacita.work/grants
+                    
+                    Di laman geran, anda boleh mengetahui:
+                    • Pelan pelepasan cukai untuk wanita yang kembali bekerja
+                    • Pembiayaan keusahawanan dan sokongan perniagaan
+                    • Perkhidmatan latihan kemahiran dan penempatan kerja
+                    • Sokongan pengaturan kerja fleksibel
+                    """;
+                    
+            default: // english
+                return """
+                    Learn about various grant and support programs provided by the Malaysian government for women:
+                    
+                    💰 **Grants Page Link:** https://citacita.work/grants
+                    
+                    On the grants page, you can learn about:
+                    • Tax exemption plans for women returning to work
+                    • Entrepreneurship financing and business support
+                    • Skills training and job placement services
+                    • Flexible work arrangement support
+                    """;
+        }
+    }
+
+    /**
+     * FAQ导航
+     */
+    private String getFAQNavigation(String language) {
+        switch (language) {
+            case "chinese":
+                return """
+                    查看我们的常见问题解答，获取平台使用指导：
+                    
+                    ❓ **FAQ页面链接：** https://citacita.work/faq
+                    
+                    FAQ页面包含：
+                    • 平台功能使用指南
+                    • 常见问题的详细解答
+                    • 故障排除和技术支持
+                    • 联系方式和进一步帮助
+                    """;
+                    
+            case "malay":
+                return """
+                    Lihat soalan lazim kami untuk mendapatkan panduan penggunaan platform:
+                    
+                    ❓ **Pautan Laman FAQ:** https://citacita.work/faq
+                    
+                    Laman FAQ mengandungi:
+                    • Panduan penggunaan fungsi platform
+                    • Jawapan terperinci untuk soalan lazim
+                    • Penyelesaian masalah dan sokongan teknikal
+                    • Maklumat hubungan dan bantuan lanjut
+                    """;
+                    
+            default: // english
+                return """
+                    Check our frequently asked questions for platform usage guidance:
+                    
+                    ❓ **FAQ Page Link:** https://citacita.work/faq
+                    
+                    The FAQ page contains:
+                    • Platform feature usage guides
+                    • Detailed answers to common questions
+                    • Troubleshooting and technical support
+                    • Contact information and further assistance
+                    """;
+        }
+    }
+
+    /**
+     * AI工具导航
+     */
+    private String getAINavigation(String language) {
+        switch (language) {
+            case "chinese":
+                return """
+                    探索我们的AI工具，提升您的职业竞争力：
+                    
+                    🤖 **AI工具页面链接：** https://citacita.work/ai
+                    
+                    AI工具包括：
+                    • **AI简历检查器** - 分析和优化您的简历
+                    • **AI模拟面试** - 练习面试技巧并获得反馈
+                    • **AI聊天机器人** - 24/7职业指导和网站导航
+                    
+                    这些工具旨在帮助您在求职过程中更加自信和准备充分。
+                    """;
+                    
+            case "malay":
+                return """
+                    Terokai alat AI kami untuk meningkatkan daya saing kerjaya anda:
+                    
+                    🤖 **Pautan Laman Alat AI:** https://citacita.work/ai
+                    
+                    Alat AI termasuk:
+                    • **Pemeriksa Resume AI** - Menganalisis dan mengoptimumkan resume anda
+                    • **Temuduga Simulasi AI** - Berlatih kemahiran temuduga dan mendapat maklum balas
+                    • **Chatbot AI** - Bimbingan kerjaya 24/7 dan navigasi laman web
+                    
+                    Alat-alat ini bertujuan membantu anda lebih yakin dan bersedia dalam proses mencari kerja.
+                    """;
+                    
+            default: // english
+                return """
+                    Explore our AI tools to enhance your career competitiveness:
+                    
+                    🤖 **AI Tools Page Link:** https://citacita.work/ai
+                    
+                    AI tools include:
+                    • **AI Resume Checker** - Analyze and optimize your resume
+                    • **AI Mock Interview** - Practice interview skills and get feedback
+                    • **AI Chatbot** - 24/7 career guidance and website navigation
+                    
+                    These tools are designed to help you be more confident and prepared in your job search process.
+                    """;
+        }
+    }
+    
     /**
      * 初始化FAQ+Grants数据库（保持你原有的所有数据）
      */
