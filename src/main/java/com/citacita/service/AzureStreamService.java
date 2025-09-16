@@ -22,12 +22,15 @@ public class AzureStreamService {
 
     private final WebClient openAiClient;
     private final WebClient speechClient;
+    private final WebClient ttsClient;
 
     public AzureStreamService(
             @Value("${azure.openai.endpoint}") String openAiEndpoint,
             @Value("${azure.openai.apiKey}") String openAiKey,
             @Value("${azure.speech.endpoint}") String speechEndpoint,
-            @Value("${azure.speech.apiKey}") String speechKey
+            @Value("${azure.speech.apiKey}") String speechKey,
+            @Value("${azure.tts.endpoint}") String ttsEndpoint,
+            @Value("${azure.tts.apiKey}") String ttsKey
     ) {
         // OpenAI Chat Completions
         this.openAiClient = WebClient.builder()
@@ -41,6 +44,12 @@ public class AzureStreamService {
                 .baseUrl(speechEndpoint)
                 .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                 .defaultHeader("Ocp-Apim-Subscription-Key", speechKey)
+                .build();
+
+        // Azure Text-to-Speech
+        this.ttsClient = WebClient.builder()
+                .baseUrl(ttsEndpoint)
+                .defaultHeader("Ocp-Apim-Subscription-Key", ttsKey)
                 .build();
     }
 
@@ -116,5 +125,39 @@ public class AzureStreamService {
             // The map is returned, and the .map() operator wraps it in a Mono.
             return responseMap;
         });
+    }
+
+    public Mono<byte[]> tts(String text) {
+        String ssmlBody = String.format(
+                "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>" +
+                        "<voice name='en-US-BrandonMultilingualNeural'>%s</voice>" +
+                        "</speak>",
+                text
+        );
+
+        return ttsClient.post()
+                .uri("/cognitiveservices/v1")
+                .header("X-Microsoft-OutputFormat", "audio-16khz-32kbitrate-mono-mp3")
+                .contentType(MediaType.valueOf("application/ssml+xml"))
+                .accept(MediaType.APPLICATION_OCTET_STREAM)
+                .bodyValue(ssmlBody)
+                .retrieve()
+                .onStatus(
+                        HttpStatusCode::isError,
+                        clientResponse -> clientResponse.bodyToMono(String.class)
+                                .defaultIfEmpty("[No response body]")
+                                .flatMap(errorBody -> {
+                                    System.err.println("Azure TTS API Error. Status: " + clientResponse.statusCode() + ", Body: " + errorBody);
+
+                                    String errorMessage = String.format(
+                                            "Azure TTS API failed with status: %s. Response: %s",
+                                            clientResponse.statusCode(),
+                                            errorBody
+                                    );
+
+                                    return Mono.error(new RuntimeException(errorMessage));
+                                })
+                )
+                .bodyToMono(byte[].class);
     }
 }

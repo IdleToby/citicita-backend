@@ -3,7 +3,9 @@ package com.citacita.controller;
 import com.citacita.service.AzureStreamService;
 // import com.citacita.service.FAQBasedRAGService; 
 import com.citacita.service.EnhancedFAQRAGService;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
@@ -26,8 +28,8 @@ public class StreamChatController {
     private static final Pattern CHINESE_PATTERN = Pattern.compile("[\\u4e00-\\u9fff]");
     private static final Pattern MALAY_PATTERN = Pattern.compile("\\b(?i)(saya|anda|adalah|dengan|untuk|ini|itu|yang|dan|atau|tidak|ya|bagaimana|kenapa|dimana|kapan|siapa|apa|boleh|tolong|terima kasih|maaf)\\b");
 
-    public StreamChatController(AzureStreamService azureStreamService, 
-                                EnhancedFAQRAGService ragService) { 
+    public StreamChatController(AzureStreamService azureStreamService,
+                                EnhancedFAQRAGService ragService) {
         this.azureStreamService = azureStreamService;
         this.ragService = ragService;
     }
@@ -39,12 +41,12 @@ public class StreamChatController {
     public Flux<String> streamChat(@RequestBody Map<String, Object> body) {
         // 1. 提取用户最新消息
         String userQuery = extractLatestUserMessage(body);
-        
+
         // 2. 如果没有用户消息，直接调用原始服务
         if (userQuery == null || userQuery.trim().isEmpty()) {
             return azureStreamService.streamChat(body);
         }
-        
+
         // 3. 进行 RAG 检索，然后注入内容
         return ragService.retrieveRelevantContent(userQuery)
                 .map(ragContent -> injectRAGContent(body, ragContent, userQuery))
@@ -63,11 +65,11 @@ public class StreamChatController {
         try {
             @SuppressWarnings("unchecked")
             List<Map<String, String>> messages = (List<Map<String, String>>) body.get("messages");
-            
+
             if (messages == null || messages.isEmpty()) {
                 return null;
             }
-            
+
             // 从后往前找最新的用户消息
             for (int i = messages.size() - 1; i >= 0; i--) {
                 Map<String, String> message = messages.get(i);
@@ -78,7 +80,7 @@ public class StreamChatController {
         } catch (Exception e) {
             System.err.println("Error extracting user message: " + e.getMessage());
         }
-        
+
         return null;
     }
 
@@ -89,28 +91,28 @@ public class StreamChatController {
         if (text == null || text.trim().isEmpty()) {
             return "english"; // 默认英语
         }
-        
+
         String lowerText = text.toLowerCase();
-        
+
         // 检测中文
         if (CHINESE_PATTERN.matcher(text).find()) {
             return "chinese";
         }
-        
+
         // 检测马来语关键词
         if (MALAY_PATTERN.matcher(lowerText).find()) {
             return "malay";
         }
-        
+
         // 检测英语特定内容（如错误消息）
-        if (lowerText.contains("sorry, your question") || 
-            lowerText.contains("i'm specifically designed") ||
-            lowerText.contains("english") ||
-            lowerText.contains("please") ||
-            lowerText.contains("thank you")) {
+        if (lowerText.contains("sorry, your question") ||
+                lowerText.contains("i'm specifically designed") ||
+                lowerText.contains("english") ||
+                lowerText.contains("please") ||
+                lowerText.contains("thank you")) {
             return "english";
         }
-        
+
         // 默认返回英语
         return "english";
     }
@@ -121,51 +123,51 @@ public class StreamChatController {
     private Map<String, Object> injectRAGContent(Map<String, Object> originalBody, String ragContent, String userQuery) {
         // 深拷贝原始 body
         Map<String, Object> enhancedBody = new HashMap<>(originalBody);
-        
+
         @SuppressWarnings("unchecked")
         List<Map<String, String>> originalMessages = (List<Map<String, String>>) originalBody.get("messages");
         List<Map<String, String>> enhancedMessages = new ArrayList<>();
-        
+
         // 复制所有消息
         for (Map<String, String> msg : originalMessages) {
             enhancedMessages.add(new HashMap<>(msg));
         }
-        
+
         // 检测语言并注入 RAG 内容
         String detectedLanguage = detectLanguage(ragContent + " " + userQuery);
-        injectAsSystemMessage(enhancedMessages, ragContent, detectedLanguage);        
-        
+        injectAsSystemMessage(enhancedMessages, ragContent, detectedLanguage);
+
         enhancedBody.put("messages", enhancedMessages);
-        
+
         // 调试：打印检测到的语言和增强后的消息
         System.out.println("=== Detected Language: " + detectedLanguage + " ===");
         System.out.println("=== RAG Enhanced Messages ===");
-        enhancedMessages.forEach(msg -> 
-            System.out.println(msg.get("role") + ": " + 
-                (msg.get("content").length() > 300 ? 
-                    msg.get("content").substring(0, 300) + "..." : 
-                    msg.get("content"))
-            )
+        enhancedMessages.forEach(msg ->
+                System.out.println(msg.get("role") + ": " +
+                        (msg.get("content").length() > 300 ?
+                                msg.get("content").substring(0, 300) + "..." :
+                                msg.get("content"))
+                )
         );
-        
+
         return enhancedBody;
     }
 
     private void injectAsSystemMessage(List<Map<String, String>> messages, String ragContent, String language) {
         boolean hasSystemMessage = messages.stream()
                 .anyMatch(msg -> "system".equals(msg.get("role")));
-        
+
         String systemContent = generateSystemContent(ragContent, language);
-        
+
         if (hasSystemMessage) {
             for (Map<String, String> msg : messages) {
                 if ("system".equals(msg.get("role"))) {
                     // 如果已有系统消息，追加RAG内容
                     String existingContent = msg.get("content");
                     String languageInstruction = getLanguageInstruction(language);
-                    
-                    systemContent = existingContent + "\n\n" + languageInstruction + "\n\n" + 
-                                  getReferenceLabel(language) + "\n" + ragContent;
+
+                    systemContent = existingContent + "\n\n" + languageInstruction + "\n\n" +
+                            getReferenceLabel(language) + "\n" + ragContent;
                     msg.put("content", systemContent);
                     break;
                 }
@@ -175,7 +177,7 @@ public class StreamChatController {
             Map<String, String> systemMessage = new HashMap<>();
             systemMessage.put("role", "system");
             systemMessage.put("content", systemContent);
-            
+
             messages.add(0, systemMessage);
         }
     }
@@ -187,7 +189,7 @@ public class StreamChatController {
         String baseInstruction = getBaseInstruction(language);
         String languageInstruction = getLanguageInstruction(language);
         String referenceLabel = getReferenceLabel(language);
-        
+
         return baseInstruction + "\n\n" + languageInstruction + "\n\n" + referenceLabel + "\n" + ragContent;
     }
 
@@ -250,5 +252,28 @@ public class StreamChatController {
     @PostMapping(value = "/resume", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Mono<Map<String, Object>> resumePolish(@RequestPart("resume") Mono<FilePart> filePartMono) {
         return azureStreamService.resumePolish(filePartMono);
+    }
+
+    /**
+     * Text-to-Speech
+     */
+    @PostMapping(value = "/text-to-speech")
+    public Mono<ResponseEntity<byte[]>> tts(@RequestPart("text") String text) {
+        // 假设 azureStreamService.tts(text) 现在返回 Mono<byte[]>
+        return azureStreamService.tts(text).map(audioBytes -> {
+            // 设置HTTP响应头
+            HttpHeaders headers = new HttpHeaders();
+            // 1. 设置内容类型为音频 MPEG (MP3)
+            headers.setContentType(MediaType.valueOf("audio/mpeg"));
+            // 2. 设置内容长度
+            headers.setContentLength(audioBytes.length);
+            // 3. (可选) 设置为附件，并指定下载的文件名
+            headers.setContentDispositionFormData("attachment", "speech.mp3");
+
+            // 构建并返回ResponseEntity
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(audioBytes);
+        });
     }
 }
