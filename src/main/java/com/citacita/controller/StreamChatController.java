@@ -3,6 +3,7 @@ package com.citacita.controller;
 import com.citacita.service.AzureStreamService;
 // import com.citacita.service.FAQBasedRAGService; 
 import com.citacita.service.EnhancedFAQRAGService;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -258,22 +259,22 @@ public class StreamChatController {
      * Text-to-Speech
      */
     @PostMapping(value = "/text-to-speech")
-    public Mono<ResponseEntity<byte[]>> tts(@RequestPart("text") String text) {
-        // 假设 azureStreamService.tts(text) 现在返回 Mono<byte[]>
-        return azureStreamService.tts(text).map(audioBytes -> {
-            // 设置HTTP响应头
-            HttpHeaders headers = new HttpHeaders();
-            // 1. 设置内容类型为音频 MPEG (MP3)
-            headers.setContentType(MediaType.valueOf("audio/mpeg"));
-            // 2. 设置内容长度
-            headers.setContentLength(audioBytes.length);
-            // 3. (可选) 设置为附件，并指定下载的文件名
-            headers.setContentDispositionFormData("attachment", "speech.mp3");
+    public ResponseEntity<Flux<DataBuffer>> tts(@RequestPart("text") String text) {
+        Flux<DataBuffer> audioStream = azureStreamService.tts(text);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.valueOf("audio/mpeg"));
 
-            // 构建并返回ResponseEntity
-            return ResponseEntity.ok()
-                    .headers(headers)
-                    .body(audioBytes);
-        });
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(audioStream);
     }
+
+    /**
+     * Pronunciation Evaluation
+     */
+    @PostMapping(value = "/pronunciation-evaluation", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Mono<Map<String, Object>> pronunciationEvaluation(@RequestPart("audio") Mono<FilePart> filePartMono) {
+        return azureStreamService.pronunciationEvaluation(filePartMono);
+    }
+
 }

@@ -2,6 +2,7 @@ package com.citacita.service;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -23,6 +24,7 @@ public class AzureStreamService {
     private final WebClient openAiClient;
     private final WebClient speechClient;
     private final WebClient ttsClient;
+
 
     public AzureStreamService(
             @Value("${azure.openai.endpoint}") String openAiEndpoint,
@@ -127,10 +129,10 @@ public class AzureStreamService {
         });
     }
 
-    public Mono<byte[]> tts(String text) {
+    public Flux<DataBuffer> tts(String text) {
         String ssmlBody = String.format(
                 "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>" +
-                        "<voice name='en-US-BrandonMultilingualNeural'>%s</voice>" +
+                        "<voice name='en-US-AvaMultilingualNeural'>%s</voice>" +
                         "</speak>",
                 text
         );
@@ -139,6 +141,7 @@ public class AzureStreamService {
                 .uri("/cognitiveservices/v1")
                 .header("X-Microsoft-OutputFormat", "audio-16khz-32kbitrate-mono-mp3")
                 .contentType(MediaType.valueOf("application/ssml+xml"))
+                // accept 头不是必需的，但保留也可以
                 .accept(MediaType.APPLICATION_OCTET_STREAM)
                 .bodyValue(ssmlBody)
                 .retrieve()
@@ -148,16 +151,18 @@ public class AzureStreamService {
                                 .defaultIfEmpty("[No response body]")
                                 .flatMap(errorBody -> {
                                     System.err.println("Azure TTS API Error. Status: " + clientResponse.statusCode() + ", Body: " + errorBody);
-
                                     String errorMessage = String.format(
                                             "Azure TTS API failed with status: %s. Response: %s",
                                             clientResponse.statusCode(),
                                             errorBody
                                     );
-
                                     return Mono.error(new RuntimeException(errorMessage));
                                 })
                 )
-                .bodyToMono(byte[].class);
+                .bodyToFlux(DataBuffer.class);
+    }
+
+    public Mono<Map<String, Object>> pronunciationEvaluation(Mono<FilePart> filePartMono) {
+        return null;
     }
 }
