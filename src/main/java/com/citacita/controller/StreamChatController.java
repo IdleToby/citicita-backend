@@ -117,7 +117,6 @@ public class StreamChatController {
 
     /**
      * 将 RAG 内容注入到消息体中 - 现在使用前端传来的语言设置
-     * 将 RAG 内容注入到消息体中 - 现在使用前端传来的语言设置
      */
     private Map<String, Object> injectRAGContent(Map<String, Object> originalBody, String ragContent, String language) {
         // 深拷贝原始 body
@@ -185,7 +184,6 @@ public class StreamChatController {
     }
 
     /**
-     * 根据前端传来的语言生成系统内容
      * 根据前端传来的语言生成系统内容
      */
     private String generateSystemContent(String ragContent, String language) {
