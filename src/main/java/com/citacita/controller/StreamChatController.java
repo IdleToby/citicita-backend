@@ -41,17 +41,12 @@ public class StreamChatController {
         if (userQuery == null || userQuery.trim().isEmpty()) {
             return azureStreamService.streamChat(body);
         }
-        
+
         // 3. 从前端获取语言设置
         String frontendLanguage = extractLanguageFromRequest(body);
-        
-        // 4. 进行 RAG 检索，然后注入内容
-        // 3. 从前端获取语言设置
-        String frontendLanguage = extractLanguageFromRequest(body);
-        
+
         // 4. 进行 RAG 检索，然后注入内容
         return ragService.retrieveRelevantContent(userQuery)
-                .map(ragContent -> injectRAGContent(body, ragContent, frontendLanguage))
                 .map(ragContent -> injectRAGContent(body, ragContent, frontendLanguage))
                 .flatMapMany(enhancedBody -> azureStreamService.streamChat(enhancedBody))
                 .onErrorResume(error -> {
@@ -62,24 +57,6 @@ public class StreamChatController {
     }
 
     /**
-     * 从请求体中提取语言设置
-     */
-    private String extractLanguageFromRequest(Map<String, Object> body) {
-        try {
-            String frontendLang = (String) body.get("language");
-            if (frontendLang != null) {
-                // 将前端语言代码映射到后端语言标识
-                return mapFrontendLanguageToBackend(frontendLang);
-            }
-        } catch (Exception e) {
-            System.err.println("Error extracting language from request: " + e.getMessage());
-        }
-        
-        // 默认返回英语
-        return "english";
-    }
-
-    /**
      * 将前端语言代码映射到后端语言标识
      */
     private String mapFrontendLanguageToBackend(String frontendLang) {
@@ -107,24 +84,9 @@ public class StreamChatController {
         } catch (Exception e) {
             System.err.println("Error extracting language from request: " + e.getMessage());
         }
-        
+
         // 默认返回英语
         return "english";
-    }
-
-    /**
-     * 将前端语言代码映射到后端语言标识
-     */
-    private String mapFrontendLanguageToBackend(String frontendLang) {
-        switch (frontendLang) {
-            case "zh-CN":
-                return "chinese";
-            case "ms":
-                return "malay";
-            case "en":
-            default:
-                return "english";
-        }
     }
 
     /**
@@ -158,7 +120,6 @@ public class StreamChatController {
      * 将 RAG 内容注入到消息体中 - 现在使用前端传来的语言设置
      */
     private Map<String, Object> injectRAGContent(Map<String, Object> originalBody, String ragContent, String language) {
-    private Map<String, Object> injectRAGContent(Map<String, Object> originalBody, String ragContent, String language) {
         // 深拷贝原始 body
         Map<String, Object> enhancedBody = new HashMap<>(originalBody);
 
@@ -170,14 +131,14 @@ public class StreamChatController {
         for (Map<String, String> msg : originalMessages) {
             enhancedMessages.add(new HashMap<>(msg));
         }
-        
+
         // 使用前端传来的语言设置注入 RAG 内容
-        injectAsSystemMessage(enhancedMessages, ragContent, language);        
+        injectAsSystemMessage(enhancedMessages, ragContent, language);
         // 使用前端传来的语言设置注入 RAG 内容
-        injectAsSystemMessage(enhancedMessages, ragContent, language);        
-        
+        injectAsSystemMessage(enhancedMessages, ragContent, language);
+
         enhancedBody.put("messages", enhancedMessages);
-        
+
         // 调试：打印使用的语言和增强后的消息
         System.out.println("=== Using Frontend Language: " + language + " ===");
         // 调试：打印使用的语言和增强后的消息
@@ -287,5 +248,34 @@ public class StreamChatController {
     public Mono<Map<String, Object>> transcribeBatch(@RequestPart("audio") Mono<FilePart> filePartMono) {
         return azureStreamService.transcribeBatch(filePartMono);
     }
+
+    /**
+     * Resume-Polish
+     */
+    @PostMapping(value = "/resume", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Mono<Map<String, Object>> resumePolish(@RequestPart("resume") Mono<FilePart> filePartMono) {
+        return azureStreamService.resumePolish(filePartMono);
+    }
+
+    /**
+     * Text-to-Speech
+     */
+    @PostMapping(value = "/text-to-speech")
+    public ResponseEntity<Flux<DataBuffer>> tts(@RequestPart("text") String text) {
+        Flux<DataBuffer> audioStream = azureStreamService.tts(text);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.valueOf("audio/mpeg"));
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(audioStream);
+    }
+
+    /**
+     * Pronunciation Evaluation
+     */
+    @PostMapping(value = "/pronunciation-evaluation", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Mono<Map<String, Object>> pronunciationEvaluation(@RequestPart("audio") Mono<FilePart> filePartMono) {
+        return azureStreamService.pronunciationEvaluation(filePartMono);
+    }
 }
-」
