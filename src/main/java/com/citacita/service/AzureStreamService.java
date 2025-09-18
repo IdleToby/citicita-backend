@@ -15,6 +15,7 @@ import reactor.core.CoreSubscriber;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,6 +25,7 @@ public class AzureStreamService {
     private final WebClient openAiClient;
     private final WebClient speechClient;
     private final WebClient ttsClient;
+    private final WebClient sttClient;
 
 
     public AzureStreamService(
@@ -32,7 +34,9 @@ public class AzureStreamService {
             @Value("${azure.speech.endpoint}") String speechEndpoint,
             @Value("${azure.speech.apiKey}") String speechKey,
             @Value("${azure.tts.endpoint}") String ttsEndpoint,
-            @Value("${azure.tts.apiKey}") String ttsKey
+            @Value("${azure.tts.apiKey}") String ttsKey,
+            @Value("${azure.stt.endpoint}") String sttEndpoint,
+            @Value("${azure.stt.apiKey}") String sttKey
     ) {
         // OpenAI Chat Completions
         this.openAiClient = WebClient.builder()
@@ -52,6 +56,12 @@ public class AzureStreamService {
         this.ttsClient = WebClient.builder()
                 .baseUrl(ttsEndpoint)
                 .defaultHeader("Ocp-Apim-Subscription-Key", ttsKey)
+                .build();
+
+        // Azure Speech-to-Text
+        this.sttClient = WebClient.builder()
+                .baseUrl(sttEndpoint)
+                .defaultHeader("Ocp-Apim-Subscription-Key", sttKey)
                 .build();
     }
 
@@ -163,6 +173,48 @@ public class AzureStreamService {
     }
 
     public Mono<Map<String, Object>> pronunciationEvaluation(Mono<FilePart> filePartMono) {
-        return null;
+        // 1. 定义发音评估的参数 (JSON 格式)
+        // 关键点: "ReferenceText" 为空字符串，代表这是“无脚本”评估
+        String pronAssessmentParamsJson = "{" +
+                "\"ReferenceText\": \"\"," +
+                "\"GradingSystem\": \"HundredMark\"," +
+                "\"Granularity\": \"Phoneme\"," +
+                "\"Dimension\": \"Comprehensive\"," +
+                "\"EnableMiscue\": false" + // 无脚本模式下，杂项（漏读/增读）评估通常为 false
+                "}";
+
+        // 2. 将 JSON 参数进行 Base64 编码，以便放入请求头
+        String pronAssessmentParamsBase64 = Base64.getEncoder()
+                .encodeToString(pronAssessmentParamsJson.getBytes());
+
+        // 3. 处理上传的音频文件并发送请求
+        return filePartMono.flatMap(filePart -> {
+            // 从 FilePart 获取音频内容
+            Flux<DataBuffer> audioData = filePart.content();
+
+            // 获取前端传递的 Content-Type，如果不存在则使用默认值
+            // 注意：Azure 对 audio/webm 的支持有限，最可靠的格式是 audio/wav
+            String contentType = filePart.headers().getContentType() != null ?
+                    filePart.headers().getContentType().toString() :
+                    "audio/wav"; // 推荐使用 WAV 格式
+
+            return sttClient.post()
+                    // 使用实时语音识别的端点，并指定语言和详细输出格式
+                    .uri("/speech/recognition/conversation/cognitiveservices/v1?language=en-US&format=detailed")
+                    .header("Pronunciation-Assessment", pronAssessmentParamsBase64) // 添加发音评估的配置头
+                    .header(HttpHeaders.CONTENT_TYPE, contentType) // 设置音频流的 Content-Type
+                    .accept(MediaType.APPLICATION_JSON)
+                    .body(audioData, DataBuffer.class)
+                    .retrieve()
+                    .onStatus(
+                            HttpStatusCode::isError,
+                            clientResponse -> clientResponse.bodyToMono(String.class)
+                                    .flatMap(errorBody -> {
+                                        System.err.println("Pronunciation Evaluation Error. Status: " + clientResponse.statusCode() + ", Body: " + errorBody);
+                                        return Mono.error(new RuntimeException("Azure API failed with status: " + clientResponse.statusCode() + " and body: " + errorBody));
+                                    })
+                    )
+                    .bodyToMono(new ParameterizedTypeReference<>() {});
+        });
     }
 }
