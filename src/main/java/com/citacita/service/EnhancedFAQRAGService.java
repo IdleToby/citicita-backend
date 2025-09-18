@@ -364,6 +364,8 @@ public class EnhancedFAQRAGService {
         
         return String.format("""
             你好！很高兴与你交流——你的提问和想法都很有价值。
+
+            **重要提醒：我们的所有功能都不需要注册，完全免费使用！**
             
             我专门为CitaCita职业匹配平台提供支持,主要可以帮助您了解:
             
@@ -403,6 +405,8 @@ public class EnhancedFAQRAGService {
         
         return String.format("""
             Hi there! We're so glad you reached out — your questions and ideas matter.
+
+            **Important: All our features are free to use with no registration required!**
             
             I'm specifically designed to help with CitaCita career matching platform, and I can assist you with:
             
@@ -442,6 +446,8 @@ public class EnhancedFAQRAGService {
         
         return String.format("""
             Hai! Kami sangat gembira anda menghubungi kami — soalan dan idea anda sangat berharga.
+
+            Saya direka khusus untuk membantu platform CitaCita career matching, dan saya boleh membantu anda dengan:
             
             Saya direka khusus untuk membantu platform CitaCita career matching, dan saya boleh membantu anda dengan:
             
@@ -1143,6 +1149,8 @@ public class EnhancedFAQRAGService {
         faqs.put("job_info", new FAQ(
             "What kind of job information can I find?",
             """
+            **CitaCita所有工作信息完全免费，无需注册即可查看！**
+
             Jobs are displayed using the MASCO (Malaysian Standard Classification of Occupations) 2020 system:
             
             1. **By Major Groups** - 9 major occupational groups (1-9)
@@ -1151,6 +1159,8 @@ public class EnhancedFAQRAGService {
             4. **Unit Groups** - Specific job titles with comprehensive descriptions
             
             Each job includes detailed information about tasks, requirements, skill levels, examples, and multilingual support (English, Chinese, Malay).
+
+            **完全免费访问，无需创建账户或登录。**
             """,
             Arrays.asList("job", "information", "find", "industry", "masco", "occupation", "工作", "信息", "行业", "职业", "分类")
         ));
@@ -1159,6 +1169,8 @@ public class EnhancedFAQRAGService {
         faqs.put("job_quiz", new FAQ(
             "What is the job quiz and how does it work?",
             """
+            **职业测验完全免费，无需注册即可使用！**
+            
             The job quiz is a multiple-choice tool that guides you step by step. It always suggests a job based on your choices, so you don't feel lost even if you're unsure about qualifications or skills.
             """,
             Arrays.asList("quiz", "test", "multiple-choice", "suggest", "测验", "测试", "建议")
@@ -1195,6 +1207,7 @@ public class EnhancedFAQRAGService {
         faqs.put("ai_tools", new FAQ(
             "Is there AI for confidence and career readiness?",
             """
+            **CitaCita的所有AI工具完全免费，无需注册即可使用！**
             The platform provides AI-driven resume builders, interview coaching suggestions, and even role models' stories to inspire women re-entering the workforce. These tools are designed to boost confidence step by step.
             """,
             Arrays.asList("ai", "confidence", "career", "readiness", "resume", "interview", "智能", "信心", "职业", "简历", "面试")
@@ -1204,6 +1217,7 @@ public class EnhancedFAQRAGService {
         faqs.put("resume_checker", new FAQ(
             "What is the AI Resume Checker?",
             """
+            **AI简历检查器完全免费，无需注册，直接上传即可使用！**
             The Resume Checker reviews your uploaded resume and highlights strengths and areas for improvement. It checks for clarity, keywords that match job descriptions, and missing information. You'll receive practical suggestions to make your resume stronger and more competitive.
             """,
             Arrays.asList("resume", "checker", "upload", "review", "keywords", "简历", "检查", "上传", "关键词")
@@ -1213,6 +1227,7 @@ public class EnhancedFAQRAGService {
         faqs.put("mock_interview", new FAQ(
             "How does the AI Mock Interview tool help?",
             """
+            **AI模拟面试完全免费，无需注册，直接开始练习！**
             The Mock Interview simulates common interview questions based on your chosen job role. The AI analyses your responses, tone, and structure, then provides constructive feedback. This allows you to practise in a safe environment, gain confidence, and improve before facing real interviews.
             """,
             Arrays.asList("mock", "interview", "simulate", "questions", "feedback", "practice", "模拟", "面试", "问题", "反馈", "练习")
@@ -1410,6 +1425,67 @@ public class EnhancedFAQRAGService {
             • 链接:https://www.talentcorp.com.my/our-initiatives/for-professionals/
             """,
             Arrays.asList("government", "support", "perantis", "ijpw", "employment", "insurance", "talentcorp", "professionals", "政府", "支持", "就业", "保险", "专业人士")
+        ));
+
+        // 19. 无需注册声明 (添加在 return faqs; 之前)
+        faqs.put("no_registration", new FAQ(
+            "Do I need to register or sign up to use CitaCita features?",
+            """
+            **不需要注册！CitaCita的所有功能都完全免费使用，无需注册账户。**
+            
+            **您可以直接使用：**
+            • 🔍 **工作搜索** - 浏览所有MASCO职业信息
+            • 📝 **职业测验** - 获取个性化工作建议  
+            • 🤖 **AI工具** - 简历检查、模拟面试、聊天机器人
+            • 🗺️ **地图功能** - 查找托儿所等支持服务
+            • 💰 **政府补助信息** - 了解各种财政支持计划
+            • ❓ **FAQ页面** - 获取详细使用指南
+            
+            **三种语言支持：** 中文、英文、马来文
+            **24/7 可用：** 随时访问所有功能
+            **完全免费：** 无隐藏费用，无需个人信息
+            
+            **No Registration Required! All CitaCita features are completely free to use without creating an account.**
+            
+            **You can directly access:**
+            • 🔍 **Job Search** - Browse all MASCO occupation information
+            • 📝 **Job Quiz** - Get personalized job recommendations
+            • 🤖 **AI Tools** - Resume checker, mock interview, chatbot
+            • 🗺️ **Map Function** - Find childcare and support services
+            • 💰 **Government Grants** - Learn about financial support programs
+            • ❓ **FAQ Page** - Get detailed usage guides
+            
+            **Three Language Support:** Chinese, English, Malay
+            **24/7 Available:** Access all features anytime
+            **Completely Free:** No hidden fees, no personal information required
+            
+            **Tiada Pendaftaran Diperlukan! Semua ciri CitaCita boleh digunakan secara percuma tanpa membuat akaun.**
+            
+            **Anda boleh terus mengakses:**
+            • 🔍 **Carian Kerja** - Lihat semua maklumat pekerjaan MASCO
+            • 📝 **Kuiz Kerja** - Dapatkan cadangan kerja yang dipersonalisasi
+            • 🤖 **Alat AI** - Pemeriksa resume, temuduga simulasi, chatbot
+            • 🗺️ **Fungsi Peta** - Cari jagaan kanak-kanak dan perkhidmatan sokongan
+            • 💰 **Geran Kerajaan** - Ketahui program sokongan kewangan
+            • ❓ **Halaman FAQ** - Dapatkan panduan penggunaan terperinci
+            
+            **Sokongan Tiga Bahasa:** Cina, Inggeris, Melayu
+            **Tersedia 24/7:** Akses semua ciri pada bila-bila masa
+            **Sepenuhnya Percuma:** Tiada bayaran tersembunyi, tiada maklumat peribadi diperlukan
+            """,
+            Arrays.asList(
+                // 英文关键词
+                "register", "registration", "sign up", "signup", "account", "login", "free", "no cost", "access", "use",
+                "create account", "membership", "subscribe", "subscription", "required", "need", "must",
+                
+                // 中文关键词  
+                "注册", "登记", "注册账户", "免费", "无需", "不需要", "创建账户", "登录", "会员", "订阅", "必须", "需要",
+                "账号", "帐户", "收费", "付费", "使用", "访问", "免费使用",
+                
+                // 马来语关键词
+                "daftar", "pendaftaran", "akaun", "log masuk", "percuma", "tidak perlu", "tiada", "guna", "akses",
+                "cipta akaun", "keahlian", "langganan", "diperlukan", "mesti", "perlu"
+            )
         ));
         
         return faqs;
