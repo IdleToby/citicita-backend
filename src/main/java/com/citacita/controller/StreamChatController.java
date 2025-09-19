@@ -273,7 +273,20 @@ public class StreamChatController {
      * Pronunciation Evaluation
      */
     @PostMapping(value = "/pronunciation-evaluation", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Mono<Map<String, Object>> pronunciationEvaluation(@RequestPart("audio") Mono<FilePart> filePartMono) {
-        return azureStreamService.pronunciationEvaluation(filePartMono);
+    public Mono<Map<String, Object>> pronunciationEvaluation(@RequestPart("audio") Mono<FilePart> filePartMono, @RequestPart("language") String lang) {
+        System.out.println("Pronunciation Evaluation Language: " + lang);
+        switch (lang) {
+            case "zh-CN":
+                lang = "zh-CN";
+                break;
+            case "ms":
+                lang = "ms-MY";
+                break;
+            case "en":
+            default:
+                lang = "en-US";
+                break;
+        }
+        return azureStreamService.pronunciationEvaluation(filePartMono, lang);
     }
 }

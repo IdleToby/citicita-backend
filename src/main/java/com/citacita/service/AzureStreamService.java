@@ -172,7 +172,7 @@ public class AzureStreamService {
                 .bodyToFlux(DataBuffer.class);
     }
 
-    public Mono<Map<String, Object>> pronunciationEvaluation(Mono<FilePart> filePartMono) {
+    public Mono<Map<String, Object>> pronunciationEvaluation(Mono<FilePart> filePartMono, String lang) {
         // 1. 定义发音评估的参数 (JSON 格式)
         // 关键点: "ReferenceText" 为空字符串，代表这是“无脚本”评估
         String pronAssessmentParamsJson = "{" +
@@ -200,7 +200,7 @@ public class AzureStreamService {
 
             return sttClient.post()
                     // 使用实时语音识别的端点，并指定语言和详细输出格式
-                    .uri("/speech/recognition/conversation/cognitiveservices/v1?language=en-US&format=detailed")
+                    .uri("/speech/recognition/conversation/cognitiveservices/v1?language=" + lang + "&format=detailed")
                     .header("Pronunciation-Assessment", pronAssessmentParamsBase64) // 添加发音评估的配置头
                     .header(HttpHeaders.CONTENT_TYPE, contentType) // 设置音频流的 Content-Type
                     .accept(MediaType.APPLICATION_JSON)
@@ -214,7 +214,8 @@ public class AzureStreamService {
                                         return Mono.error(new RuntimeException("Azure API failed with status: " + clientResponse.statusCode() + " and body: " + errorBody));
                                     })
                     )
-                    .bodyToMono(new ParameterizedTypeReference<>() {});
+                    .bodyToMono(new ParameterizedTypeReference<>() {
+                    });
         });
     }
 }
