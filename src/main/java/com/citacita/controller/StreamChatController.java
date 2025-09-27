@@ -289,4 +289,9 @@ public class StreamChatController {
         }
         return azureStreamService.pronunciationEvaluation(filePartMono, lang);
     }
+
+    @PostMapping(value = "/generate-questions")
+    public Mono<String> generateQuestions(@RequestBody Map<String, Object> body) {
+        return azureStreamService.generateQuestions(body);
+    }
 }

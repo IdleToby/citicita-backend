@@ -1,5 +1,8 @@
 package com.citacita.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.buffer.DataBuffer;
@@ -218,4 +221,36 @@ public class AzureStreamService {
                     });
         });
     }
+
+    public Mono<String> generateQuestions(Map<String, Object> body) {
+        return openAiClient.post()
+                .uri("/models/chat/completions?api-version=2024-05-01-preview")
+                .bodyValue(body)
+                .accept(MediaType.APPLICATION_JSON) // 非流式返回 JSON
+                .retrieve()
+                .onStatus(
+                        HttpStatusCode::isError,
+                        clientResponse -> clientResponse.bodyToMono(String.class)
+                                .flatMap(errorBody -> {
+                                    System.err.println("OpenAI API Error: " + errorBody);
+                                    return Mono.error(new RuntimeException("OpenAI API failed: " + errorBody));
+                                })
+                )
+                .bodyToMono(String.class) // 拿到完整响应
+                .map(fullResponse -> {
+                    try {
+                        ObjectMapper mapper = new ObjectMapper();
+                        JsonNode root = mapper.readTree(fullResponse);
+
+                        // 提取出 choices[0].message.content
+                        String content = root.path("choices").get(0).path("message").path("content").asText();
+
+                        mapper.readTree(content); // 确认是合法 JSON
+                        return content;
+                    } catch (Exception e) {
+                        throw new RuntimeException("Failed to parse response: " + fullResponse, e);
+                    }
+                });
+    }
+
 }
