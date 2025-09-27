@@ -243,10 +243,8 @@ public class AzureStreamService {
                         JsonNode root = mapper.readTree(fullResponse);
 
                         // 提取出 choices[0].message.content
-                        String content = root.path("choices").get(0).path("message").path("content").asText();
 
-                        mapper.readTree(content); // 确认是合法 JSON
-                        return content;
+                        return root.path("choices").get(0).path("message").path("content").asText();
                     } catch (Exception e) {
                         throw new RuntimeException("Failed to parse response: " + fullResponse, e);
                     }
