@@ -1,116 +1,3 @@
-// package com.citacita.service;
-
-// import com.citacita.config.AzureOpenAIConfig;
-// import com.citacita.dto.ChatRequest;
-// import com.fasterxml.jackson.databind.ObjectMapper;
-// import lombok.extern.slf4j.Slf4j;
-// import org.springframework.http.HttpStatusCode;
-// import org.springframework.http.MediaType;
-// import org.springframework.stereotype.Service;
-// import org.springframework.web.reactive.function.client.WebClient;
-// import reactor.core.publisher.Flux;
-// import reactor.core.publisher.FluxSink;
-// import reactor.core.scheduler.Schedulers;
-
-// import java.time.Duration;
-// import java.util.HashMap;
-// import java.util.List;
-// import java.util.Map;
-
-// @Service
-// @Slf4j
-// public class ResumeChatService {
-
-//     private final WebClient openAiClient;
-//     private final AzureOpenAIConfig azureConfig;
-//     private final ObjectMapper objectMapper;
-
-//     public ResumeChatService(AzureOpenAIConfig azureConfig, ObjectMapper objectMapper) {
-//         this.azureConfig = azureConfig;
-//         this.objectMapper = objectMapper;
-//         this.openAiClient = WebClient.builder()
-//                 .baseUrl(azureConfig.getEndpoint())
-//                 .defaultHeader("Authorization", "Bearer " + azureConfig.getApiKey())
-//                 .defaultHeader("Content-Type", "application/json")
-//                 .build();
-//     }
-
-//     public Flux<String> streamChat(ChatRequest request) {
-//         log.info("=== ResumeChatService.streamChat 开始 ===");
-//         log.info("请求消息数量: {}", request.getMessages().size());
-//         log.info("Azure端点: {}", azureConfig.getEndpoint());
-
-//         return Flux.<String>create(sink -> {
-//             try {
-//                 // 1. 构建请求体
-//                 Map<String, Object> body = buildRequestBody(request);
-
-//                 // 2. 调用 Azure OpenAI
-//                 streamAzureOpenAI(body, sink);
-
-//             } catch (Exception e) {
-//                 log.error("简历聊天流式处理失败", e);
-//                 handleError(sink, e);
-//             }
-//         })
-//         .subscribeOn(Schedulers.boundedElastic()) // 异步调度
-//         .timeout(Duration.ofMinutes(2)); // 超时保护
-//     }
-
-//     private void streamAzureOpenAI(Map<String, Object> body, FluxSink<String> sink) {
-//         openAiClient.post()
-//                 .uri("/models/chat/completions?api-version=2024-05-01-preview")
-//                 .bodyValue(body)
-//                 .accept(MediaType.TEXT_EVENT_STREAM)
-//                 .retrieve()
-//                 .onStatus(
-//                         HttpStatusCode::isError,
-//                         clientResponse -> clientResponse.bodyToMono(String.class)
-//                                 .flatMap(errorBody -> {
-//                                     log.error("OpenAI API Error: {}", errorBody);
-//                                     return reactor.core.publisher.Mono.error(
-//                                             new RuntimeException("OpenAI API failed: " + errorBody)
-//                                     );
-//                                 })
-//                 )
-//                 .bodyToFlux(String.class)
-//                 .map(this::cleanAzureResponse)
-//                 .doOnNext(sink::next)
-//                 .doOnError(e -> handleError(sink, e))
-//                 .doOnComplete(sink::complete)
-//                 .subscribe();
-//     }
-
-//     // 构建请求体
-//     private Map<String, Object> buildRequestBody(ChatRequest request) {
-//         Map<String, Object> body = new HashMap<>();
-//         body.put("messages", request.getMessages());
-//         body.put("temperature", azureConfig.getTemperature());
-//         body.put("max_tokens", azureConfig.getMaxTokens());
-
-//         body.put("model", request.getModel() != null ? request.getModel() : "gpt-oss-120b");
-
-//         return body;
-//     }
-
-//     // 清理 Azure 响应（避免奇怪符号）
-//     private String cleanAzureResponse(String response) {
-//         return response
-//                 .replace("’ ", "'")
-//                 .replace("’", "'");
-//     }
-
-//     // 错误处理
-//     private void handleError(FluxSink<String> sink, Throwable e) {
-//         try {
-//             String errorJson = objectMapper.writeValueAsString(Map.of("error", e.getMessage()));
-//             sink.next("data: " + errorJson + "\n\n");
-//         } catch (Exception ex) {
-//             sink.next("data: {\"error\":\"" + e.getMessage() + "\"}\n\n");
-//         }
-//         sink.complete();
-//     }
-// }
 package com.citacita.service;
 
 import com.citacita.dto.ChatRequest;
@@ -129,149 +16,157 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ResumeChatService {
     
-    // 注入你现有的 AzureStreamService
     private final AzureStreamService azureStreamService;
+    private final ResumeRagService resumeRagService; // 已经有了，保持不变
     
     public Flux<String> streamChat(ChatRequest request) {
-        log.info("=== ResumeChatService.streamChat 开始 ===");
-        log.info("请求消息数量: {}", request.getMessages().size());
+        log.info("=== ResumeChatService 开始处理 ===");
+        log.info("界面语言: {}", request.getLanguage());
         
-        // 1. 增强消息内容 - 添加简历分析上下文
-        List<ChatRequest.ChatMessage> enhancedMessages = enhanceMessagesForResume(request);
+        // 检查RAG状态
+        boolean ragEnabled = request.getRagConfig() != null && request.getRagConfig().isEnabled();
+        log.info("RAG启用状态: {}", ragEnabled);
         
-        // 2. 构建请求体
-        Map<String, Object> body = buildRequestBody(enhancedMessages, request);
+        if (ragEnabled && request.getRagConfig().getRetrievalContext() != null) {
+            log.info("简历文件: {}", request.getRagConfig().getRetrievalContext().getResumeFile());
+        }
         
-        log.info("发送到Azure的请求: {}", body);
-        
-        // 3. 调用AzureStreamService并打印原始输出
-        return azureStreamService.streamChat(body)
-                .doOnNext(chunk -> {
-                    // 🔥 关键调试：打印AzureStreamService的原始输出
-                    log.info("🔍 AzureStreamService原始输出: [{}]", chunk);
-                    log.info("🔍 是否包含data前缀: {}", chunk.startsWith("data:"));
-                })
-                .doOnComplete(() -> log.info("✅ ResumeChatService stream completed"));
+        try {
+            Map<String, Object> body = buildAiChatCompatibleBody(request);
+            
+            return azureStreamService.streamChat(body)
+                    .doOnNext(chunk -> {
+                        if (chunk.contains("\"content\":\"") && !chunk.contains("\"content\":\"\"")) {
+                            log.debug("收到正常内容");
+                        }
+                    })
+                    .doOnComplete(() -> log.info("流响应完成"));
+                    
+        } catch (Exception e) {
+            log.error("ResumeChatService 处理失败: ", e);
+            return Flux.just(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"处理请求失败\"}}]}\n\n", 
+                "data: [DONE]\n\n"
+            );
+        }
     }
     
-    private List<ChatRequest.ChatMessage> enhanceMessagesForResume(ChatRequest request) {
-        List<ChatRequest.ChatMessage> enhancedMessages = new ArrayList<>();
+    private Map<String, Object> buildAiChatCompatibleBody(ChatRequest request) {
+        Map<String, Object> body = new HashMap<>();
+        List<Map<String, Object>> cleanMessages = new ArrayList<>();
         
-        // 添加简历专用的系统提示
-        String resumeSystemPrompt = buildResumeSystemPrompt(request.getLanguage());
-        enhancedMessages.add(new ChatRequest.ChatMessage("system", resumeSystemPrompt));
+        // 构建增强的系统消息（包含RAG内容）
+        Map<String, Object> systemMsg = new HashMap<>();
+        systemMsg.put("role", "system");
+        String systemPrompt = buildEnhancedSystemPrompt(request);
+        systemMsg.put("content", systemPrompt);
+        cleanMessages.add(systemMsg);
         
-        // 添加原始消息，跳过原来的system消息（如果有）
+        log.info("系统提示长度: {}", systemPrompt.length());
+        
+        // 只保留真正的对话，过滤掉前端生成的长文本
         for (ChatRequest.ChatMessage msg : request.getMessages()) {
-            if (!"system".equals(msg.getRole())) {
-                // 增强用户消息，添加简历相关上下文
-                if ("user".equals(msg.getRole())) {
-                    String enhancedContent = enhanceUserMessageForResume(msg.getContent());
-                    enhancedMessages.add(new ChatRequest.ChatMessage("user", enhancedContent));
-                } else {
-                    enhancedMessages.add(msg);
+            if ("user".equals(msg.getRole())) {
+                Map<String, Object> msgMap = new HashMap<>();
+                msgMap.put("role", msg.getRole());
+                msgMap.put("content", msg.getContent());
+                cleanMessages.add(msgMap);
+            } else if ("assistant".equals(msg.getRole())) {
+                String content = msg.getContent();
+                if (content != null && 
+                    content.length() < 200 && 
+                    !content.contains("欢迎使用CitaCita") && 
+                    !content.contains("简历分析完成") && 
+                    !content.contains("📊 详细分析结果")) {
+                    
+                    Map<String, Object> msgMap = new HashMap<>();
+                    msgMap.put("role", msg.getRole());
+                    msgMap.put("content", content);
+                    cleanMessages.add(msgMap);
                 }
             }
         }
         
-        return enhancedMessages;
-    }
-    
-    private Map<String, Object> buildRequestBody(List<ChatRequest.ChatMessage> messages, ChatRequest request) {
-        Map<String, Object> body = new HashMap<>();
-        
-        // 转换消息格式为Azure需要的格式
-        List<Map<String, Object>> azureMessages = messages.stream()
-                .map(msg -> {
-                    Map<String, Object> msgMap = new HashMap<>();
-                    msgMap.put("role", msg.getRole());
-                    msgMap.put("content", msg.getContent());
-                    return msgMap;
-                })
-                .toList();
-        
-        body.put("messages", azureMessages);
+        body.put("messages", cleanMessages);
+        body.put("model", request.getModel() != null ? request.getModel() : "gpt-oss-120b");
         body.put("stream", true);
-        body.put("temperature", 0.7);
-        body.put("max_tokens", 2000);
+        body.put("language", request.getLanguage());
         
-        // 如果请求中有model，使用它，否则使用默认的
-        if (request.getModel() != null) {
-            body.put("model", request.getModel());
-        }
+        log.info("使用语言: {}, 清理后的消息数量: {} (原始: {})", 
+               request.getLanguage(), cleanMessages.size(), request.getMessages().size());
         
         return body;
     }
     
-    private String buildResumeSystemPrompt(String language) {
-        switch (language != null ? language : "en") {
-            case "zh-CN":
-                return """
-                    你是CitaCita的专业简历分析师和职业顾问。请严格按照以下要求回答：
-                    
-                    【专业领域】
-                    - 简历结构优化和内容改进
-                    - 工作经历描述和量化成就
-                    - 技能展示和关键词优化
-                    - ATS系统适配建议
-                    - 职业发展规划建议
-                    
-                    【回答风格】
-                    - 提供具体、可操作的建议
-                    - 使用专业但易懂的语言
-                    - 给出实际的例子和模板
-                    - 关注求职成功率提升
-                    
-                    现在请基于用户的简历相关问题，提供专业建议。
-                    """;
-                    
-            case "en":
-                return """
-                    You are a professional resume analyst and career counselor for CitaCita. 
-                    
-                    【PROFESSIONAL AREAS】
-                    - Resume structure optimization and content improvement
-                    - Work experience description and quantified achievements
-                    - Skills presentation and keyword optimization
-                    - ATS system compatibility recommendations
-                    - Career development planning advice
-                    
-                    【RESPONSE STYLE】
-                    - Provide specific, actionable recommendations
-                    - Use professional but understandable language
-                    - Give practical examples and templates
-                    - Focus on improving job search success rates
-                    
-                    Please provide professional advice based on the user's resume-related questions.
-                    """;
-                    
-            case "ms":
-                return """
-                    Anda adalah penganalisis resume profesional dan kaunselor kerjaya untuk CitaCita.
-                    
-                    【BIDANG PROFESIONAL】
-                    - Pengoptimuman struktur resume dan penambahbaikan kandungan
-                    - Penerangan pengalaman kerja dan pencapaian terkuantiti
-                    - Persembahan kemahiran dan pengoptimuman kata kunci
-                    - Cadangan keserasian sistem ATS
-                    - Nasihat perancangan pembangunan kerjaya
-                    
-                    【GAYA RESPONS】
-                    - Berikan cadangan khusus dan boleh dilaksanakan
-                    - Gunakan bahasa profesional tetapi mudah difahami
-                    - Berikan contoh praktikal dan templat
-                    - Fokus pada meningkatkan kadar kejayaan pencarian kerja
-                    
-                    Sila berikan nasihat profesional berdasarkan soalan berkaitan resume pengguna.
-                    """;
-                    
-            default:
-                return buildResumeSystemPrompt("en");
+    /**
+     * 构建包含RAG内容的增强系统提示
+     */
+    private String buildEnhancedSystemPrompt(ChatRequest request) {
+        String basePrompt = buildSystemPromptByLanguage(request.getLanguage());
+        
+        // 检查是否启用RAG
+        if (request.getRagConfig() != null && request.getRagConfig().isEnabled()) {
+            log.info("开始检索RAG上下文");
+            String ragContext = retrieveRagContext(request);
+            
+            if (!ragContext.isEmpty()) {
+                log.info("RAG上下文已添加，长度: {}", ragContext.length());
+                return basePrompt + "\n\n" + ragContext;
+            } else {
+                log.warn("RAG启用但未获取到上下文");
+            }
+        } else {
+            log.info("RAG未启用");
+        }
+        
+        return basePrompt;
+    }
+    
+    /**
+     * 检索RAG上下文
+     */
+    private String retrieveRagContext(ChatRequest request) {
+        if (request.getRagConfig() == null || 
+            request.getRagConfig().getRetrievalContext() == null) {
+            log.warn("RAG配置或检索上下文为空");
+            return "";
+        }
+        
+        ChatRequest.RagConfig.RetrievalContext context = request.getRagConfig().getRetrievalContext();
+        if (context.getResumeFile() == null || context.getResumeFile().trim().isEmpty()) {
+            log.warn("简历文件名为空");
+            return "";
+        }
+        
+        try {
+            return resumeRagService.buildResumeContext(
+                context.getResumeFile(),
+                context.getUserQuery() != null ? context.getUserQuery() : "",
+                request.getLanguage()
+            );
+        } catch (Exception e) {
+            log.error("RAG检索失败", e);
+            return "";
         }
     }
     
-    private String enhanceUserMessageForResume(String originalMessage) {
-        // 添加简历相关的上下文标签，帮助AI理解这是简历相关的问题
-        return "[简历优化咨询 Resume Consultation] " + originalMessage;
+    /**
+     * 根据前端language参数生成对应语言的系统提示
+     */
+    private String buildSystemPromptByLanguage(String language) {
+        switch (language != null ? language : "en") {
+            case "zh-CN":
+                return "你是CitaCita的简历分析师。请用中文简洁地回答用户关于简历的问题。" +
+                       "**重要**: 你只能基于提供的简历分析结果回答，不要编造或猜测任何不在分析结果中的信息。";
+            case "en":
+                return "You are a resume analyst from CitaCita. Please respond concisely in English to user questions about resumes. " +
+                       "**Important**: Only answer based on the provided resume analysis results. Do not make up or guess any information not in the analysis.";
+            case "ms":
+                return "Anda adalah penganalisis resume dari CitaCita. Sila jawab dengan ringkas dalam Bahasa Melayu untuk soalan pengguna tentang resume. " +
+                       "**Penting**: Hanya jawab berdasarkan hasil analisis resume yang disediakan. Jangan buat atau teka sebarang maklumat yang tidak ada dalam analisis.";
+            default:
+                return "You are a resume analyst from CitaCita. Please respond concisely in English to user questions about resumes. " +
+                       "**Important**: Only answer based on the provided resume analysis results.";
+        }
     }
 }
